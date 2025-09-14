@@ -2,7 +2,7 @@
 
 MetalTnT is an experimental Minecraft mod that replaces OpenGL with Apple's Metal API on macOS
 
-## 🎯 Why MacBuddy v3?
+## 🎯 Why MetalTnT?
 
 The Problem: Minecraft on Mac uses OpenGL, which isn't optimized for modern Mac hardware. This can cause:
 
