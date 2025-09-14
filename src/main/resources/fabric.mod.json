@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "id": "metaltnt",
+  "version": "${version}",
+  "name": "MetalTNT",
+  "description": "OpenGL to Metal Total Overall Mod",
+  "authors": [],
+  "contact": {},
+  "license": "All-Rights-Reserved",
+  "icon": "assets/metaltnt/icon.png",
+  "environment": "*",
+  "entrypoints": {
+    "fabric-datagen": [
+      "org.sykes.metaltnt.client.MetaltntDataGenerator"
+    ],
+    "client": [
+      "org.sykes.metaltnt.client.MetaltntClient"
+    ],
+    "main": [
+      "org.sykes.metaltnt.Metaltnt"
+    ]
+  },
+  "mixins": [
+    "metaltnt.mixins.json",
+    {
+      "config": "metaltnt.client.mixins.json",
+      "environment": "client"
+    }
+  ],
+  "depends": {
+    "fabricloader": ">=${loader_version}",
+    "fabric": "*",
+    "minecraft": "${minecraft_version}"
+  }
+}
