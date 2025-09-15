@@ -1,6 +1,4 @@
 package org.sykes.metaltnt.client.mixin;
-
-import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.render.GameRenderer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
