@@ -6,5 +6,7 @@ public class Metaltnt implements ModInitializer {
 
     @Override
     public void onInitialize() {
+
+
     }
 }

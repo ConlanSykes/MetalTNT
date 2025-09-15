@@ -1,0 +1,27 @@
+plugins {
+    id 'cpp-library'
+}
+
+// Configure the default library created by cpp-library plugin
+library {
+    targetMachines.add(machines.macOS.x86_64)
+    targetMachines.add(machines.macOS.architecture('aarch64'))
+
+    // Set the library name to match what Java expects
+    baseName = 'native-lib'
+
+    // Configure source sets to include .mm files
+    source.from file('src/main/cpp')
+    publicHeaders.from file('src/main/cpp')
+
+    // Configure compiler and linker arguments for macOS
+    binaries.configureEach {
+        compileTask.get().compilerArgs.addAll(['-std=c++17', '-fobjc-arc', '-x', 'objective-c++'])
+        compileTask.get().compilerArgs.addAll(['-I' + System.getProperty('java.home') + '/include'])
+        compileTask.get().compilerArgs.addAll(['-I' + System.getProperty('java.home') + '/include/darwin'])
+        linkTask.get().linkerArgs.addAll(['-framework', 'Metal', '-framework', 'MetalKit',
+                                          '-framework', 'Cocoa', '-framework', 'QuartzCore',
+                                          '-framework', 'CoreVideo', '-framework', 'OpenGL',
+                                          '-framework', 'IOSurface'])
+    }
+}

@@ -103,3 +103,7 @@ publishing {
         // retrieving dependencies.
     }
 }
+
+tasks.named('build') {
+    dependsOn ':native:build'
+}
