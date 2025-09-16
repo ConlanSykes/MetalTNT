@@ -6,17 +6,45 @@ plugins {
 version = project.mod_version
 group = project.maven_group
 
-base {
-    archivesName = project.archives_base_name
-}
+base { archivesName = project.archives_base_name }
 
 loom {
     splitEnvironmentSourceSets()
 
     mods {
-        "metaltnt" {
+        metaltnt {
             sourceSet sourceSets.main
             sourceSet sourceSets.client
+        }
+    }
+
+    // ✅ Put VM args directly on the Loom run; this is what Fabric uses.
+    runs {
+        client {
+            // where the dylib will be copied to
+            def nativesDir = project.layout.buildDirectory.dir("natives").get().asFile.absolutePath
+
+            // Pass BOTH properties. We'll use -Dmetaltnt.natives for absolute load.
+            vmArg "-Dmetaltnt.natives=${nativesDir}"
+            // Optional: if you still rely on System.loadLibrary(...)
+            vmArg "-Djava.library.path=${nativesDir}"
+            // Optional: LWJGL’s own native lookup (not strictly needed for your JNI)
+            vmArg "-Dorg.lwjgl.librarypath=${nativesDir}"
+
+            // Make the run use the standard run dir
+            runDir "run"
+
+      /* 
+            * debug level: Shows DEBUG, INFO, WARN, ERROR, FATAL
+            * info level (your current): Shows INFO, WARN, ERROR, FATAL (no DEBUG)
+            * warn level: Shows WARN, ERROR, FATAL
+            * error level: Shows ERROR, FATAL only
+            */
+            // Ensure the native exists before launching
+            property "fabric.log.level", "debug"
+
+            
+
         }
     }
 }
@@ -27,20 +55,12 @@ fabricApi {
     }
 }
 
-repositories {
-    // Add repositories to retrieve artifacts from in here.
-    // You should only use this when depending on other mods because
-    // Loom adds the essential maven repositories to download Minecraft and libraries from automatically.
-    // See https://docs.gradle.org/current/userguide/declaring_repositories.html
-    // for more information about repositories.
-}
+repositories { }
 
 dependencies {
-    // To change the versions see the gradle.properties file
     minecraft "com.mojang:minecraft:${project.minecraft_version}"
     mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
     modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
-
     modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
 }
 
@@ -49,7 +69,6 @@ processResources {
     inputs.property "minecraft_version", project.minecraft_version
     inputs.property "loader_version", project.loader_version
     filteringCharset "UTF-8"
-
     filesMatching("fabric.mod.json") {
         expand "version": project.version,
                 "minecraft_version": project.minecraft_version,
@@ -59,10 +78,6 @@ processResources {
 
 def targetJavaVersion = 21
 tasks.withType(JavaCompile).configureEach {
-    // ensure that the encoding is set to UTF-8, no matter what the system default is
-    // this fixes some edge cases with special characters not displaying correctly
-    // see http://yodaconditions.net/blog/fix-for-java-file-encoding-problems-with-gradle.html
-    // If Javadoc is generated, this must be specified in that task too.
     it.options.encoding = "UTF-8"
     if (targetJavaVersion >= 10 || JavaVersion.current().isJava10Compatible()) {
         it.options.release.set(targetJavaVersion)
@@ -74,36 +89,103 @@ java {
     if (JavaVersion.current() < javaVersion) {
         toolchain.languageVersion = JavaLanguageVersion.of(targetJavaVersion)
     }
-    // Loom will automatically attach sourcesJar to a RemapSourcesJar task and to the "build" task
-    // if it is present.
-    // If you remove this line, sources will not be generated.
     withSourcesJar()
 }
 
 jar {
-    from("LICENSE") {
-        rename { "${it}_${project.archivesBaseName}" }
-    }
+    from("LICENSE") { rename { "${it}_${project.archivesBaseName}" } }
 }
 
-// configure the maven publication
-publishing {
-    publications {
-        create("mavenJava", MavenPublication) {
-            artifactId = project.archives_base_name
-            from components.java
+// --- ✅ Native copy wiring ---
+def nativesOut = layout.buildDirectory.dir("natives")
+
+tasks.register('copyNativeLibrary', Copy) {
+    dependsOn ':native:build'
+    from(project(':native').layout.buildDirectory.dir('lib')) {
+        include '**/libnative-lib.dylib'
+    }
+    into(nativesOut)
+    // Flatten the directory structure so the dylib is directly in build/natives/
+    eachFile { fileCopyDetails ->
+        fileCopyDetails.path = fileCopyDetails.name
+    }
+    doFirst {
+        def srcDir = project(':native').layout.buildDirectory.dir('lib').get().asFile
+        println "Searching for libnative-lib.dylib in: ${srcDir}"
+        if (!srcDir.exists()) {
+            println "WARNING: Native libs dir does not exist yet: ${srcDir}"
+        } else {
+            def found = fileTree(srcDir).matching { include '**/libnative-lib.dylib' }.files*.absolutePath
+            println "Found native candidates: ${found}"
         }
     }
+}
 
-    // See https://docs.gradle.org/current/userguide/publishing_maven.html for information on how to set up publishing.
-    repositories {
-        // Add repositories to publish to here.
-        // Notice: This block does NOT have the same function as the block in the top level.
-        // The repositories here will be used for publishing your artifact, not for
-        // retrieving dependencies.
+// Copy the built dylib into locations that are always on the dev-launcher's search path
+tasks.register('syncNativeToCwd') {
+    dependsOn ':native:build'
+    doLast {
+        def srcRoot = project(':native').layout.buildDirectory.dir('lib').get().asFile
+        def files = fileTree(srcRoot).matching { include '**/libnative-lib.dylib' }.files
+if (files.isEmpty()) {
+    println "WARNING: libnative-lib.dylib not found under ${srcRoot}"
+    return
+}
+def src = files.iterator().next()
+// 1) Copy to project root ('.' on most dev-launch runs)
+copy {
+    from src
+    into project.projectDir
+}
+// 2) Also copy to ./run (used by Minecraft for assets/crash-reports)
+copy {
+    from src
+    into file("${project.projectDir}/run")
+}
+println "Placed native at: ${new File(project.projectDir, 'libnative-lib.dylib')}"
+println "Placed native at: ${new File(project.projectDir, 'run/libnative-lib.dylib')}"
+}
+}
+
+// Ensure any JavaExec-based client run (including IDE dev-launch) prepares natives first
+tasks.withType(JavaExec).configureEach {
+    if (name.toLowerCase().contains("client") ||
+            (mainClass?.getOrNull()?.contains("net.fabricmc.devlaunchinjector.Main") ?: false)) {
+        // Build natives and stage them
+        dependsOn ':native:build', 'copyNativeLibrary', 'syncNativeToCwd'
+
+        // Just before launch, mirror the dylib into the actual workingDir ('.' for the process)
+        doFirst {
+            def srcRoot = project(':native').layout.buildDirectory.dir('lib').get().asFile
+            def candidates = fileTree(srcRoot).matching { include '**/libnative-lib.dylib' }.files
+            if (candidates.isEmpty()) {
+                println "WARNING: libnative-lib.dylib not found under ${srcRoot}"
+            } else {
+                def src = candidates.iterator().next()
+                def targets = [
+                        workingDir,                                // actual cwd for this JavaExec
+                        project.projectDir,                        // project root
+                        file("${project.projectDir}/run"),         // run dir used by MC
+                        nativesOut.get().asFile                    // build/natives for consistency
+                ]
+                targets.findAll { it != null }.each { dir ->
+                    copy {
+                        from src
+                        into dir
+                    }
+                }
+                println "Synchronized native to workingDir for ${name}: ${workingDir}"
+            }
+        }
     }
 }
 
-tasks.named('build') {
-    dependsOn ':native:build'
+
+
+// Make ALL Loom run configs depend on native copy, not just a task name we hope matches.
+tasks.matching { it.name.startsWith("runClient") || it.name.contains("run") }.configureEach {
+    dependsOn 'copyNativeLibrary'
 }
+
+// Still ensure a normal build also builds natives
+tasks.named('build') { dependsOn ':native:build' }
