@@ -8,6 +8,7 @@ import org.sykes.metaltnt.client.checker.CheckifMac;
 
 public final class CVPixelBufferMount {
     private static final Logger LOGGER = LoggerFactory.getLogger(CVPixelBufferMount.class);
+    private static volatile boolean mounted;
     static {
         try {
 
@@ -70,7 +71,11 @@ public final class CVPixelBufferMount {
      * Initialize the CVPixelBuffer system
      * This should be called during mod initialization
      */
-    public static void mount() {
+    public static synchronized void mount() {
+        if (mounted) {
+            LOGGER.debug("CVPixelBufferMount.mount() called but already mounted");
+            return;
+        }
         LOGGER.debug("🔍 CVPixelBufferMount.mount() called - DEBUG ENABLED: {}", LOGGER.isDebugEnabled());
 
         // define minecraft and its instance
@@ -105,20 +110,21 @@ public final class CVPixelBufferMount {
         int height = window.getFramebufferHeight();
         float scale = (float) window.getScaleFactor();
 
+        /*
+         * Analogy: Apartment manager
+         * • You live in an apartment building.
+         * • GLFWwindow* = the apartment manager’s office record about your unit. It has
+         * your name, rent, complaints, etc.
+         * • NSWindow* = the actual apartment unit itself. Where the furniture is, where
+         * you can knock down a wall, install a new light.
+         */
 
-        /*  Analogy: Apartment manager
-	    •	You live in an apartment building.
-	    •	GLFWwindow* = the apartment manager’s office record about your unit. It has your name, rent, complaints, etc.
-	    •	NSWindow* = the actual apartment unit itself. Where the furniture is, where you can knock down a wall, install a new light.
-        */
-
-        //get the pointer to the window this is cross device
+        // get the pointer to the window this is cross device
         long glfwWindow = MinecraftClient.getInstance().getWindow().getHandle();
 
         // get the NSWindow pointer using GLFWNativeCocoa
-        //this is the MacOS specific window pointer
-       long nsWindow = GLFWNativeCocoa.glfwGetCocoaWindow(glfwWindow);
-
+        // this is the MacOS specific window pointer
+        long nsWindow = GLFWNativeCocoa.glfwGetCocoaWindow(glfwWindow);
 
         // Onetime log of current window dimensions if running in debug mode
         LOGGER.debug("Window Dimensions: {}x{}", width, height);
@@ -136,12 +142,10 @@ public final class CVPixelBufferMount {
             throw new RuntimeException("CVPixelBuffer initialization failed", t);
         }
 
-
-
         // make attachToGameWindow to attach CVPixelBuffer to game window
 
         try {
-            if( nsWindow != 0) {
+            if (nsWindow != 0) {
                 attachToGameWindow(nsWindow, width, height, scale);
             } else {
                 LOGGER.error("NSWindow pointer is null. Cannot mount CVPixelBuffer.");
@@ -153,5 +157,37 @@ public final class CVPixelBufferMount {
         }
         // make renderFrame to render the frame
         renderFrame();
+        mounted = true;
+    }
+
+    public static boolean isMounted() {
+        return mounted;
+    }
+
+    /**
+     * Get the OpenGL texture ID for Minecraft to render into
+     * 
+     * @return OpenGL texture ID, or 0 if not initialized
+     */
+
+    // get the texture id for minecraft to render into so metal can render into it
+    // in its own thread
+    public static native int getOpenGLTexture();
+
+    /**
+     * Toggle between OpenGL and Metal rendering
+     * This allows switching between the hybrid OpenGL approach and pure Metal
+     * rendering
+     */
+    public static native void toggleRenderer();
+
+    /**
+     * Test method to enable Metal renderer for testing
+     */
+    public static void testMetalRenderer() {
+        if (isMounted()) {
+            toggleRenderer();
+            LOGGER.info("Metal renderer toggled for testing");
+        }
     }
 }

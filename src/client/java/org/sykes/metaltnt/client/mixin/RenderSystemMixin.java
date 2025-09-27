@@ -7,7 +7,12 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.At;
 import org.sykes.metaltnt.client.Metal.CVPixelBufferMount;
+
+import com.mojang.blaze3d.platform.GlStateManager;
+
 import org.spongepowered.asm.mixin.Unique;
+import static org.lwjgl.opengl.GL11.*;
+import static org.lwjgl.opengl.GL30.*;
 
 /**
  * Mixin to intercept RenderSystem calls and redirect to Metal rendering
@@ -35,7 +40,7 @@ public class RenderSystemMixin {
         if (!isMetalCalled) {
             isMetalCalled = true;
 
-            // Try and mount CVPixelBuffer or return Exception
+            // Try and mount CVPixelBuffer or return Exce ption
             try {
                 CVPixelBufferMount.mount();
                 LOGGER.info("✅ CVPixelBufferMount mounted successfully");
@@ -76,5 +81,7 @@ public class RenderSystemMixin {
 
         // For now, use original OpenGL clear to maintain normal rendering
         com.mojang.blaze3d.systems.RenderSystem.clear(mask, getError);
+        CVPixelBufferMount.renderFrame();
+
     }
 }
