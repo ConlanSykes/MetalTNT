@@ -24,9 +24,11 @@ public class GameRendererMixin {
         // When Metal is active in-game, handle ALL clears:
         // - Main framebuffer: cancel (Metal handles sky/clear)
         // - Offscreen targets: clear the persistent Metal RT
-        if (!MetalRenderClient.isEnabled() || MetalRenderClient.getWorldRenderer() == null) return;
+        if (!MetalRenderClient.isEnabled() || MetalRenderClient.getWorldRenderer() == null)
+            return;
         MetalWorldRenderer renderer = MetalRenderClient.getWorldRenderer();
-        if (net.minecraft.client.MinecraftClient.getInstance().world == null) return;
+        if (net.minecraft.client.MinecraftClient.getInstance().world == null)
+            return;
 
         GpuTextureView override = RenderSystem.outputColorTextureOverride;
 
@@ -56,14 +58,16 @@ public class GameRendererMixin {
                     if (gpuTex instanceof GlTexture glTex) {
                         overrideGlId = glTex.getGlId();
                     }
-                } catch (Exception e) { /* ignore */ }
+                } catch (Exception e) {
+                    /* ignore */ }
                 System.err.println("[MetalRender] GameRendererMixin: SKIPPED clear (storage bucket mode) atlas glId="
                         + overrideGlId + " (clear #" + offscreenClearCount + ")");
             }
             ci.cancel();
         } else if (override == null && renderer.isInFrame()) {
             // Main framebuffer clear: block it — Metal handles sky rendering
-            // Only cancel when we're actually in a Metal frame; otherwise let GL clear normally
+            // Only cancel when we're actually in a Metal frame; otherwise let GL clear
+            // normally
             ci.cancel();
         }
         // If override set but Metal not in frame, let GL handle it

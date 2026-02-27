@@ -27,8 +27,12 @@ public final class NativeBridge {
 
   // Generic draw system: entity/UI/particle rendering in Metal
   public static native void nClearGenericDraws(long var0);
+
   public static native int nUploadGenericTexture(long var0, int texId, int width, int height, byte[] pixelData);
-  public static native void nQueueGenericDraw(long var0, byte[] vertexData, int vertexCount, int textureId, int blendMode, float[] modelViewMatrix);
+
+  public static native void nQueueGenericDraw(long var0, byte[] vertexData, int vertexCount, int textureId,
+      int blendMode, float[] modelViewMatrix);
+
   public static native void nSetProjectionMatrix(long var0, float[] matrix);
 
   // Sky brightness for day/night cycle (0.0 = night, 1.0 = full day)
@@ -36,9 +40,12 @@ public final class NativeBridge {
 
   // Offscreen render-to-texture: Metal renders item models directly instead of GL
   public static native void nClearOffscreen(long handle); // clear persistent RT (scroll/tab change)
+
   public static native int nBeginOffscreenPass(long handle, int width, int height);
+
   public static native int nDrawOffscreen(long handle, byte[] vertexData, int vertexCount,
       int textureId, int blendMode, float[] projMatrix);
+
   public static native int nEndOffscreenPass(long handle, int snapshotTexId);
 
   // Item cache: GPU-side blit from atlas snapshot to per-item cache texture
@@ -48,14 +55,23 @@ public final class NativeBridge {
   // Voxel Ray Tracing: shadow rays & GI via 3D voxel grid
   public static native void nUploadVoxelColumn(long handle, int chunkWorldX, int chunkWorldZ,
       int startY, int endY, byte[] voxelData);
+
   public static native void nSetVoxelOrigin(long handle, float originX, float originY, float originZ);
+
   public static native void nSetSunDirection(long handle, float dirX, float dirY, float dirZ);
+
   public static native void nSetInvViewProj(long handle, float[] matrix);
+
   public static native void nSetViewProj(long handle, float[] matrix);
+
   public static native void nSetCameraPosition(long handle, float x, float y, float z);
+
   public static native void nSetShadowDistance(long handle, float distanceBlocks);
+
   public static native void nSetPointLights(long handle, float[] lightData, int count);
+
   public static native void nComputeShadowAndGI(long handle);
+
   public static native void nApplyShadowComposite(long handle);
 
   public static native void nOnWorldLoaded(long var0);

@@ -28,11 +28,13 @@ import java.util.Set;
 
 /**
  * Intercepts ALL non-terrain draw calls at the RenderLayer.draw() level.
- * Converts vertex data to a unified 32-byte format (float3 pos + ubyte4 color + float2 uv + float2 light)
+ * Converts vertex data to a unified 32-byte format (float3 pos + ubyte4 color +
+ * float2 uv + float2 light)
  * and queues Metal draw commands instead of letting GL handle the rendering.
  *
  * This covers entities, UI, particles, weather, block entities — everything
- * that goes through MC's VertexConsumerProvider → BufferBuilder → RenderLayer pipeline.
+ * that goes through MC's VertexConsumerProvider → BufferBuilder → RenderLayer
+ * pipeline.
  */
 @Mixin(RenderLayer.class)
 public class RenderLayerMixin {
@@ -40,8 +42,10 @@ public class RenderLayerMixin {
     private static long queuedCount = 0;
     private static long skippedCount = 0;
 
-    // Reference to shared texture upload cache (cleared each frame by TextureCacheManager).
-    // Using the shared set from TextureCacheManager so MetalWorldRenderer can clear it.
+    // Reference to shared texture upload cache (cleared each frame by
+    // TextureCacheManager).
+    // Using the shared set from TextureCacheManager so MetalWorldRenderer can clear
+    // it.
     private static final Set<Integer> uploadedTextures = com.metalrender.render.TextureCacheManager.uploadedTextures;
 
     /**
@@ -58,16 +62,19 @@ public class RenderLayerMixin {
     }
 
     /**
-     * Get the GL texture ID for this RenderLayer by accessing the RenderSetup's texture info.
+     * Get the GL texture ID for this RenderLayer by accessing the RenderSetup's
+     * texture info.
      * Returns 0 if no texture could be resolved.
      */
     private int getGlTextureId() {
         try {
             RenderSetup setup = ((RenderLayerAccessor) this).metalrender$getRenderSetup();
-            if (setup == null) return 0;
+            if (setup == null)
+                return 0;
 
             Map<String, RenderSetup.Texture> resolved = setup.resolveTextures();
-            if (resolved == null || resolved.isEmpty()) return 0;
+            if (resolved == null || resolved.isEmpty())
+                return 0;
 
             // Try "Sampler0" first (main texture), fall back to first entry
             RenderSetup.Texture tex = resolved.get("Sampler0");
@@ -76,7 +83,8 @@ public class RenderLayerMixin {
             }
 
             GpuTextureView view = tex.textureView();
-            if (view == null) return 0;
+            if (view == null)
+                return 0;
 
             GpuTexture gpuTex = view.texture();
             if (gpuTex instanceof GlTexture glTex) {
@@ -92,7 +100,8 @@ public class RenderLayerMixin {
      * Read the GL texture pixels and upload to Metal if not already cached.
      */
     private void ensureTextureUploaded(long handle, int glTexId) {
-        if (glTexId <= 0 || uploadedTextures.contains(glTexId)) return;
+        if (glTexId <= 0 || uploadedTextures.contains(glTexId))
+            return;
 
         try {
             // Save current GL texture binding
@@ -160,13 +169,14 @@ public class RenderLayerMixin {
 
     @Inject(method = "draw", at = @At("HEAD"), cancellable = true)
     private void metalrender$interceptDraw(BuiltBuffer builtBuffer, CallbackInfo ci) {
-        if (!MetalRenderClient.isEnabled()) return;
+        if (!MetalRenderClient.isEnabled())
+            return;
         MetalWorldRenderer renderer = MetalRenderClient.getWorldRenderer();
-        if (renderer == null || renderer.getHandle() == 0L) return;
+        if (renderer == null || renderer.getHandle() == 0L)
+            return;
 
         // Detect offscreen rendering (item models rendered to small buffer)
-        com.mojang.blaze3d.textures.GpuTextureView offscreenOverride =
-                com.mojang.blaze3d.systems.RenderSystem.outputColorTextureOverride;
+        com.mojang.blaze3d.textures.GpuTextureView offscreenOverride = com.mojang.blaze3d.systems.RenderSystem.outputColorTextureOverride;
         boolean isOffscreen = (offscreenOverride != null);
 
         // ---- OFFSCREEN: Let GL handle it natively ----
@@ -211,7 +221,8 @@ public class RenderLayerMixin {
         }
 
         // CRITICAL: If offscreen draws arrive when we're NOT in-frame, we MUST still
-        // handle them. Otherwise items rendered to the atlas before renderFrame() are lost.
+        // handle them. Otherwise items rendered to the atlas before renderFrame() are
+        // lost.
         if (!renderer.isInFrame()) {
             // Not in frame — skip non-offscreen draws (title screen etc.)
             return;
@@ -240,7 +251,8 @@ public class RenderLayerMixin {
                 return;
             }
 
-            // Convert to unified 32-byte format: float3 pos (12) + ubyte4 color (4) + float2 uv (8) + float2 light (8)
+            // Convert to unified 32-byte format: float3 pos (12) + ubyte4 color (4) +
+            // float2 uv (8) + float2 light (8)
             byte[] unifiedData = convertToUnifiedFormat(srcBuffer, format, vertexCount, params.mode());
             if (unifiedData == null || unifiedData.length == 0) {
                 ci.cancel();
@@ -266,13 +278,16 @@ public class RenderLayerMixin {
             // compositing quads. compositeOverlay() is the ONLY place that ends it.
 
             // Get the effective projection matrix for this draw.
-            // For WORLD phase (0): frameProjection already includes projection * viewRotation,
-            //   so we do NOT apply RenderSystem.getModelViewMatrix() (would double-apply camera).
+            // For WORLD phase (0): frameProjection already includes projection *
+            // viewRotation,
+            // so we do NOT apply RenderSystem.getModelViewMatrix() (would double-apply
+            // camera).
             // For UI phase (1): orthoProjectionMatrix is pure orthographic.
-            //   MC's RenderLayer.draw() applies RenderSystem.getModelViewMatrix() via shader
-            //   uniforms. For inventory entities (player model, item entities),
-            //   drawEntity() sets up modelView with positioning/scaling.
-            //   We MUST capture and apply it or inventory entities render with wrong transform.
+            // MC's RenderLayer.draw() applies RenderSystem.getModelViewMatrix() via shader
+            // uniforms. For inventory entities (player model, item entities),
+            // drawEntity() sets up modelView with positioning/scaling.
+            // We MUST capture and apply it or inventory entities render with wrong
+            // transform.
             float[] drawMatrix;
             int phase = renderer.getRenderPhase();
             {
@@ -298,7 +313,7 @@ public class RenderLayerMixin {
             }
 
             // blendMode: 1=alpha (3D with depth), 2=UI (alpha, no depth test),
-            //            3=text overlay (drawn after UI), 4=shadow (multiply blend, depth bias)
+            // 3=text overlay (drawn after UI), 4=shadow (multiply blend, depth bias)
             int blendMode;
             if (phase == 0) {
                 if (isShadowLayer()) {
@@ -321,7 +336,10 @@ public class RenderLayerMixin {
             // to trace texture and phase assignments
             if (queuedCount <= 200 || (queuedCount % 5000) == 1) {
                 String layerName = "?";
-                try { layerName = ((RenderLayer)(Object)this).toString(); } catch (Exception ignored) {}
+                try {
+                    layerName = ((RenderLayer) (Object) this).toString();
+                } catch (Exception ignored) {
+                }
                 System.err.println("[MetalRender] DRAW-DIAG #" + queuedCount
                         + " layer=" + layerName
                         + " tex=" + glTexId
@@ -346,17 +364,18 @@ public class RenderLayerMixin {
     }
 
     /**
-     * Convert MC vertex data from any supported format to our unified 32-byte format.
+     * Convert MC vertex data from any supported format to our unified 32-byte
+     * format.
      * Handles QUADS→TRIANGLES conversion.
      *
      * Unified format per vertex (32 bytes):
-     *   float3 position  (12 bytes) at offset 0
-     *   ubyte4 color     (4 bytes)  at offset 12
-     *   float2 uv        (8 bytes)  at offset 16
-     *   float2 light     (8 bytes)  at offset 24  (blockLight, skyLight in 0-1)
+     * float3 position (12 bytes) at offset 0
+     * ubyte4 color (4 bytes) at offset 12
+     * float2 uv (8 bytes) at offset 16
+     * float2 light (8 bytes) at offset 24 (blockLight, skyLight in 0-1)
      */
     private static byte[] convertToUnifiedFormat(ByteBuffer src, VertexFormat format,
-                                                  int vertexCount, VertexFormat.DrawMode mode) {
+            int vertexCount, VertexFormat.DrawMode mode) {
         int srcVertexSize = format.getVertexSize();
         int srcPos = src.position();
 
@@ -368,32 +387,40 @@ public class RenderLayerMixin {
         // POSITION element (id=0): float3
         if (VertexFormatElement.POSITION != null) {
             int elemOffset = format.getOffset(VertexFormatElement.POSITION);
-            if (elemOffset >= 0) posOffset = elemOffset;
+            if (elemOffset >= 0)
+                posOffset = elemOffset;
         }
 
         // COLOR element (id=1): ubyte4
         if (VertexFormatElement.COLOR != null) {
             try {
                 int elemOffset = format.getOffset(VertexFormatElement.COLOR);
-                if (elemOffset >= 0) colorOffset = elemOffset;
-            } catch (Exception e) { /* element not in format */ }
+                if (elemOffset >= 0)
+                    colorOffset = elemOffset;
+            } catch (Exception e) {
+                /* element not in format */ }
         }
 
         // UV0 element (id=2): float2
         if (VertexFormatElement.UV0 != null) {
             try {
                 int elemOffset = format.getOffset(VertexFormatElement.UV0);
-                if (elemOffset >= 0) uvOffset = elemOffset;
-            } catch (Exception e) { /* element not in format */ }
+                if (elemOffset >= 0)
+                    uvOffset = elemOffset;
+            } catch (Exception e) {
+                /* element not in format */ }
         }
 
         // UV2 / LIGHT element: short2 packed light (blockLight, skyLight)
-        // Minecraft encodes per-vertex lighting here as (lightLevel << 4) in range 0-240
+        // Minecraft encodes per-vertex lighting here as (lightLevel << 4) in range
+        // 0-240
         if (VertexFormatElement.UV2 != null) {
             try {
                 int elemOffset = format.getOffset(VertexFormatElement.UV2);
-                if (elemOffset >= 0) lightOffset = elemOffset;
-            } catch (Exception e) { /* element not in format */ }
+                if (elemOffset >= 0)
+                    lightOffset = elemOffset;
+            } catch (Exception e) {
+                /* element not in format */ }
         }
 
         if (posOffset < 0) {
@@ -419,7 +446,7 @@ public class RenderLayerMixin {
             // Convert quads to triangles: 0,1,2 + 0,2,3
             int quadCount = vertexCount / 4;
             for (int q = 0; q < quadCount; q++) {
-                int[] indices = {0, 1, 2, 0, 2, 3};
+                int[] indices = { 0, 1, 2, 0, 2, 3 };
                 for (int idx : indices) {
                     int vertIdx = q * 4 + idx;
                     writeUnifiedVertex(src, srcPos, srcVertexSize, vertIdx,
@@ -438,8 +465,8 @@ public class RenderLayerMixin {
     }
 
     private static void writeUnifiedVertex(ByteBuffer src, int srcBasePos, int srcVertexSize,
-                                            int vertIndex, int posOffset, int colorOffset,
-                                            int uvOffset, int lightOffset, ByteBuffer out) {
+            int vertIndex, int posOffset, int colorOffset,
+            int uvOffset, int lightOffset, ByteBuffer out) {
         int vertBase = srcBasePos + vertIndex * srcVertexSize;
 
         // Position: float3
@@ -455,7 +482,7 @@ public class RenderLayerMixin {
 
         // Color: ubyte4 RGBA
         if (colorOffset >= 0 && vertBase + colorOffset + 4 <= src.limit()) {
-            out.put(src.get(vertBase + colorOffset));     // R
+            out.put(src.get(vertBase + colorOffset)); // R
             out.put(src.get(vertBase + colorOffset + 1)); // G
             out.put(src.get(vertBase + colorOffset + 2)); // B
             out.put(src.get(vertBase + colorOffset + 3)); // A
@@ -512,13 +539,15 @@ public class RenderLayerMixin {
     private static float[] getMetalDepthProjection() {
         int offW = MetalWorldRenderer.offscreenWidth;
         int offH = MetalWorldRenderer.offscreenHeight;
-        if (offW <= 0) offW = 64;
-        if (offH <= 0) offH = 64;
+        if (offW <= 0)
+            offW = 64;
+        if (offH <= 0)
+            offH = 64;
         // Match MC's GUI-like orthographic projection for the item atlas:
         // left=0, right=atlasW, top=0, bottom=atlasH, near=-2000, far=3000
         // Y is top→bottom (standard MC screen coords), zZeroToOne for Metal
         Matrix4f ortho = new Matrix4f();
-        ortho.setOrtho(0.0f, (float)offW, (float)offH, 0.0f, -2000.0f, 3000.0f, true);
+        ortho.setOrtho(0.0f, (float) offW, (float) offH, 0.0f, -2000.0f, 3000.0f, true);
         float[] result = new float[16];
         ortho.get(result);
         return result;

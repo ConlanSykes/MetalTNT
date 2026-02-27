@@ -40,16 +40,19 @@ import java.util.Set;
  * through Metal instead of the GL-based GuiRenderer/RenderPass pipeline.
  *
  * MC 1.21.11 uses a new retained-mode GUI rendering system:
- *   DrawContext -> GuiRenderState -> GuiRenderer -> RenderPass -> GL
+ * DrawContext -> GuiRenderState -> GuiRenderer -> RenderPass -> GL
  * We intercept at the DrawContext level to capture quad geometry and textures,
  * build Metal draws, and cancel the GL path.
  */
 @Mixin(DrawContext.class)
 public class DrawContextMixin {
 
-    @Shadow @Final private Matrix3x2fStack matrices;
+    @Shadow
+    @Final
+    private Matrix3x2fStack matrices;
 
-    // Reference to shared GUI texture upload cache (cleared each frame by TextureCacheManager).
+    // Reference to shared GUI texture upload cache (cleared each frame by
+    // TextureCacheManager).
     private static final Set<Integer> uploadedGuiTextures = com.metalrender.render.TextureCacheManager.uploadedGuiTextures;
     private static long guiDrawCount = 0;
     private static int totalFillCount = 0;
@@ -60,14 +63,13 @@ public class DrawContextMixin {
      * All GUI texture draws (hotbar, buttons, icons, etc.) funnel through this.
      *
      * Actual parameter order (from bytecode tracing through Identifier overload):
-     *   ints: x1, y1, x2, y2
-     *   floats: u0, u1, v0, v1 (minU, maxU, minV, maxV)
+     * ints: x1, y1, x2, y2
+     * floats: u0, u1, v0, v1 (minU, maxU, minV, maxV)
      */
     private static long offscreenQuadCount = 0;
     private static long btnDiagCount = 0;
 
-    @Inject(method = "drawTexturedQuad(Lcom/mojang/blaze3d/pipeline/RenderPipeline;Lcom/mojang/blaze3d/textures/GpuTextureView;Lnet/minecraft/client/gl/GpuSampler;IIIIFFFFI)V",
-            at = @At("HEAD"), cancellable = true)
+    @Inject(method = "drawTexturedQuad(Lcom/mojang/blaze3d/pipeline/RenderPipeline;Lcom/mojang/blaze3d/textures/GpuTextureView;Lnet/minecraft/client/gl/GpuSampler;IIIIFFFFI)V", at = @At("HEAD"), cancellable = true)
     private void metalrender$interceptTexturedQuad(
             RenderPipeline pipeline, GpuTextureView textureView, GpuSampler sampler,
             int x1, int y1, int x2, int y2,
@@ -81,7 +83,8 @@ public class DrawContextMixin {
                 int texId = 0;
                 if (textureView != null) {
                     GpuTexture gpuTex = textureView.texture();
-                    if (gpuTex instanceof GlTexture glTex) texId = glTex.getGlId();
+                    if (gpuTex instanceof GlTexture glTex)
+                        texId = glTex.getGlId();
                 }
                 boolean enabled = MetalRenderClient.isEnabled();
                 MetalWorldRenderer ren = MetalRenderClient.getWorldRenderer();
@@ -92,20 +95,21 @@ public class DrawContextMixin {
                         + " pos=(" + x1 + "," + y1 + ")-(" + x2 + "," + y2 + ")"
                         + " uv=(" + minU + "," + maxU + "," + minV + "," + maxV + ")"
                         + " tex=" + texId + " color=0x" + Integer.toHexString(color)
-                        + " w=" + (x2-x1) + " h=" + (y2-y1)
+                        + " w=" + (x2 - x1) + " h=" + (y2 - y1)
                         + " enabled=" + enabled + " inFrame=" + inFrame);
             }
         }
-        if (!MetalRenderClient.isEnabled()) return;
+        if (!MetalRenderClient.isEnabled())
+            return;
         MetalWorldRenderer renderer = MetalRenderClient.getWorldRenderer();
-        if (renderer == null || renderer.getHandle() == 0L || !renderer.isInFrame()) return;
+        if (renderer == null || renderer.getHandle() == 0L || !renderer.isInFrame())
+            return;
 
         long handle = renderer.getHandle();
 
         // ---- Check for OFFSCREEN rendering (item sprites to atlas) ----
         // Route to Metal offscreen RTT — renders this item sprite to the atlas.
-        com.mojang.blaze3d.textures.GpuTextureView offscreenOverride =
-                com.mojang.blaze3d.systems.RenderSystem.outputColorTextureOverride;
+        com.mojang.blaze3d.textures.GpuTextureView offscreenOverride = com.mojang.blaze3d.systems.RenderSystem.outputColorTextureOverride;
         if (offscreenOverride != null) {
             // Get source texture GL ID and upload to Metal
             int srcGlTexId = 0;
@@ -128,12 +132,18 @@ public class DrawContextMixin {
                         overrideGlId = glOff.getGlId();
                         int prevTex = org.lwjgl.opengl.GL11.glGetInteger(org.lwjgl.opengl.GL11.GL_TEXTURE_BINDING_2D);
                         org.lwjgl.opengl.GL11.glBindTexture(org.lwjgl.opengl.GL11.GL_TEXTURE_2D, overrideGlId);
-                        offW = org.lwjgl.opengl.GL11.glGetTexLevelParameteri(org.lwjgl.opengl.GL11.GL_TEXTURE_2D, 0, org.lwjgl.opengl.GL11.GL_TEXTURE_WIDTH);
-                        offH = org.lwjgl.opengl.GL11.glGetTexLevelParameteri(org.lwjgl.opengl.GL11.GL_TEXTURE_2D, 0, org.lwjgl.opengl.GL11.GL_TEXTURE_HEIGHT);
+                        offW = org.lwjgl.opengl.GL11.glGetTexLevelParameteri(org.lwjgl.opengl.GL11.GL_TEXTURE_2D, 0,
+                                org.lwjgl.opengl.GL11.GL_TEXTURE_WIDTH);
+                        offH = org.lwjgl.opengl.GL11.glGetTexLevelParameteri(org.lwjgl.opengl.GL11.GL_TEXTURE_2D, 0,
+                                org.lwjgl.opengl.GL11.GL_TEXTURE_HEIGHT);
                         org.lwjgl.opengl.GL11.glBindTexture(org.lwjgl.opengl.GL11.GL_TEXTURE_2D, prevTex);
-                        if (offW <= 0 || offH <= 0) { offW = 512; offH = 512; }
+                        if (offW <= 0 || offH <= 0) {
+                            offW = 512;
+                            offH = 512;
+                        }
                     }
-                } catch (Exception e) { /* ignore */ }
+                } catch (Exception e) {
+                    /* ignore */ }
                 MetalWorldRenderer.currentOffscreenGlTexId = overrideGlId;
                 MetalWorldRenderer.offscreenWidth = offW;
                 MetalWorldRenderer.offscreenHeight = offH;
@@ -157,8 +167,10 @@ public class DrawContextMixin {
                     minU, minV, maxU, maxV, r2, g2, b2, a2);
             int offW = MetalWorldRenderer.offscreenWidth;
             int offH = MetalWorldRenderer.offscreenHeight;
-            if (offW <= 0) offW = 512;
-            if (offH <= 0) offH = 512;
+            if (offW <= 0)
+                offW = 512;
+            if (offH <= 0)
+                offH = 512;
             Matrix4f ortho = new Matrix4f();
             ortho.setOrtho(0.0f, (float) offW, (float) offH, 0.0f, -2000.0f, 3000.0f, true);
             float[] offMatrix = new float[16];
@@ -181,7 +193,8 @@ public class DrawContextMixin {
         // Skip fullscreen textured quads (MC's world framebuffer composite draws).
         // MC composites the GL-rendered world as a fullscreen blit in the GUI layer.
         // Since we render terrain directly to Metal, these would paint the (black) GL
-        // framebuffer over our terrain. Detect by checking if quad covers entire scaled window.
+        // framebuffer over our terrain. Detect by checking if quad covers entire scaled
+        // window.
         {
             net.minecraft.client.util.Window window = MinecraftClient.getInstance().getWindow();
             int scaledW = window.getScaledWidth();
@@ -247,24 +260,25 @@ public class DrawContextMixin {
     }
 
     /**
-     * Intercept the innermost fill() method for solid color rectangles and gradients.
+     * Intercept the innermost fill() method for solid color rectangles and
+     * gradients.
      */
-    @Inject(method = "fill(Lcom/mojang/blaze3d/pipeline/RenderPipeline;Lnet/minecraft/client/texture/TextureSetup;IIIIILjava/lang/Integer;)V",
-            at = @At("HEAD"), cancellable = true)
+    @Inject(method = "fill(Lcom/mojang/blaze3d/pipeline/RenderPipeline;Lnet/minecraft/client/texture/TextureSetup;IIIIILjava/lang/Integer;)V", at = @At("HEAD"), cancellable = true)
     private void metalrender$interceptFill(
             RenderPipeline pipeline, TextureSetup textureSetup,
             int x1, int y1, int x2, int y2, int color, Integer colorEnd,
             CallbackInfo ci) {
-        if (!MetalRenderClient.isEnabled()) return;
+        if (!MetalRenderClient.isEnabled())
+            return;
         MetalWorldRenderer renderer = MetalRenderClient.getWorldRenderer();
-        if (renderer == null || renderer.getHandle() == 0L || !renderer.isInFrame()) return;
+        if (renderer == null || renderer.getHandle() == 0L || !renderer.isInFrame())
+            return;
 
         long handle = renderer.getHandle();
 
         // ---- Check for OFFSCREEN fill (atlas background clear) ----
         // Route fill to Metal offscreen RTT as a solid color quad.
-        com.mojang.blaze3d.textures.GpuTextureView offscreenOverride =
-                com.mojang.blaze3d.systems.RenderSystem.outputColorTextureOverride;
+        com.mojang.blaze3d.textures.GpuTextureView offscreenOverride = com.mojang.blaze3d.systems.RenderSystem.outputColorTextureOverride;
         if (offscreenOverride != null) {
             if (!MetalWorldRenderer.inOffscreenPass) {
                 // Offscreen pass not started yet — skip this fill, it'll be handled
@@ -287,8 +301,10 @@ public class DrawContextMixin {
                     0, 0, 1, 1, r2, g2, b2, a2);
             int offW = MetalWorldRenderer.offscreenWidth;
             int offH = MetalWorldRenderer.offscreenHeight;
-            if (offW <= 0) offW = 512;
-            if (offH <= 0) offH = 512;
+            if (offW <= 0)
+                offW = 512;
+            if (offH <= 0)
+                offH = 512;
             Matrix4f ortho = new Matrix4f();
             ortho.setOrtho(0.0f, (float) offW, (float) offH, 0.0f, -2000.0f, 3000.0f, true);
             float[] offMatrix = new float[16];
@@ -335,10 +351,11 @@ public class DrawContextMixin {
             vertData = buildGradientQuad(
                     tlx, tly, trx, try_, blx, bly, brx, bry,
                     0, 0, 1, 1,
-                    r, g, b, a,    // top color
+                    r, g, b, a, // top color
                     r2, g2, b2, a2); // bottom color
         } else {
-            // Solid fill: use white fallback texture (ID=0), vertex colors define appearance
+            // Solid fill: use white fallback texture (ID=0), vertex colors define
+            // appearance
             vertData = buildQuad(
                     tlx, tly, trx, try_, blx, bly, brx, bry,
                     0, 0, 1, 1, r, g, b, a);
@@ -351,18 +368,21 @@ public class DrawContextMixin {
     }
 
     /**
-     * Intercept text rendering: route through VCP → RenderLayer.draw → RenderLayerMixin → Metal.
-     * This catches ALL text (drawTextWithShadow, drawCenteredText, drawWrappedText, etc.)
+     * Intercept text rendering: route through VCP → RenderLayer.draw →
+     * RenderLayerMixin → Metal.
+     * This catches ALL text (drawTextWithShadow, drawCenteredText, drawWrappedText,
+     * etc.)
      * since they all funnel to this method.
      */
-    @Inject(method = "drawText(Lnet/minecraft/client/font/TextRenderer;Lnet/minecraft/text/OrderedText;IIIZ)V",
-            at = @At("HEAD"), cancellable = true)
+    @Inject(method = "drawText(Lnet/minecraft/client/font/TextRenderer;Lnet/minecraft/text/OrderedText;IIIZ)V", at = @At("HEAD"), cancellable = true)
     private void metalrender$interceptDrawText(
             TextRenderer textRenderer, OrderedText text, int x, int y, int color, boolean shadow,
             CallbackInfo ci) {
-        if (!MetalRenderClient.isEnabled()) return;
+        if (!MetalRenderClient.isEnabled())
+            return;
         MetalWorldRenderer renderer = MetalRenderClient.getWorldRenderer();
-        if (renderer == null || renderer.getHandle() == 0L || !renderer.isInFrame()) return;
+        if (renderer == null || renderer.getHandle() == 0L || !renderer.isInFrame())
+            return;
 
         try {
             // Convert DrawContext's 2D matrix stack to a 4x4 matrix for TextRenderer
@@ -411,7 +431,8 @@ public class DrawContextMixin {
 
     /**
      * Build a 2-triangle quad from 4 transformed corners.
-     * Layout: 6 vertices x 32 bytes (float3 pos + ubyte4 color + float2 uv + float2 light)
+     * Layout: 6 vertices x 32 bytes (float3 pos + ubyte4 color + float2 uv + float2
+     * light)
      */
     private static byte[] buildQuad(
             float tlx, float tly, float trx, float try_,
@@ -432,7 +453,8 @@ public class DrawContextMixin {
     }
 
     /**
-     * Build a gradient quad: top vertices use topColor, bottom vertices use bottomColor.
+     * Build a gradient quad: top vertices use topColor, bottom vertices use
+     * bottomColor.
      * Used for fillGradient calls which have different start/end colors.
      */
     private static byte[] buildGradientQuad(
@@ -455,8 +477,8 @@ public class DrawContextMixin {
     }
 
     private static void writeVertex(ByteBuffer buf, float x, float y, float z,
-                                     byte r, byte g, byte b, byte a,
-                                     float u, float v) {
+            byte r, byte g, byte b, byte a,
+            float u, float v) {
         buf.putFloat(x);
         buf.putFloat(y);
         buf.putFloat(z);
@@ -477,7 +499,8 @@ public class DrawContextMixin {
      * from glGetTexImage for immutable textures (created via glTexStorage2D).
      */
     private static void ensureGuiTextureUploaded(long handle, int glTexId) {
-        if (glTexId <= 0 || uploadedGuiTextures.contains(glTexId)) return;
+        if (glTexId <= 0 || uploadedGuiTextures.contains(glTexId))
+            return;
 
         try {
             int prevTex = org.lwjgl.opengl.GL11.glGetInteger(
@@ -560,18 +583,18 @@ public class DrawContextMixin {
     // ====================================================================
 
     /**
-     * Track which slots are being rendered this frame. DrawContext.drawItem() is called
-     * for each inventory slot. We find the matching slot by screen position and mark it
+     * Track which slots are being rendered this frame. DrawContext.drawItem() is
+     * called
+     * for each inventory slot. We find the matching slot by screen position and
+     * mark it
      * as "rendered this frame" so the cache knows the atlas has fresh data for it.
      */
-    @Inject(method = "drawItem(Lnet/minecraft/entity/LivingEntity;Lnet/minecraft/world/World;Lnet/minecraft/item/ItemStack;III)V",
-            at = @At("HEAD"))
+    @Inject(method = "drawItem(Lnet/minecraft/entity/LivingEntity;Lnet/minecraft/world/World;Lnet/minecraft/item/ItemStack;III)V", at = @At("HEAD"))
     private void metalrender$trackItemStart(LivingEntity entity, World world,
             ItemStack stack, int x, int y, int seed, CallbackInfo ci) {
         if (stack != null && !stack.isEmpty()) {
             try {
-                net.minecraft.client.gui.screen.Screen screen =
-                        MinecraftClient.getInstance().currentScreen;
+                net.minecraft.client.gui.screen.Screen screen = MinecraftClient.getInstance().currentScreen;
                 if (screen instanceof HandledScreenAccessor acc) {
                     net.minecraft.screen.ScreenHandler handler = acc.metalrender$getHandler();
                     int guiX = acc.metalrender$getX();
@@ -583,7 +606,8 @@ public class DrawContextMixin {
                         }
                     }
                 }
-            } catch (Exception e) { /* ignore */ }
+            } catch (Exception e) {
+                /* ignore */ }
         }
     }
 }

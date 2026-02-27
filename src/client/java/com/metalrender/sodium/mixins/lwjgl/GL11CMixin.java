@@ -14,30 +14,33 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * source texture data for Metal.
  */
 @Pseudo
-@Mixin(targets = {"org.lwjgl.opengl.GL11C"})
+@Mixin(targets = { "org.lwjgl.opengl.GL11C" })
 public class GL11CMixin {
 
   /**
    * Cancel glDrawElements when Metal is rendering in-world.
-   * Blocks ALL GL draw calls — Metal handles both main framebuffer and offscreen (RTT).
+   * Blocks ALL GL draw calls — Metal handles both main framebuffer and offscreen
+   * (RTT).
    */
   private static long glBlockedOffscreenCount = 0;
   private static long glBlockedTotalCount = 0;
 
-  @Inject(method = {"glDrawElements"}, at = { @At("HEAD") }, cancellable = true, remap = false, require = 0)
+  @Inject(method = { "glDrawElements" }, at = { @At("HEAD") }, cancellable = true, remap = false, require = 0)
   private static void metalrender$onDrawElements(int mode, int count, int type,
-                                                 long indicesOffset,
-                                                 CallbackInfo ci) {
+      long indicesOffset,
+      CallbackInfo ci) {
     // Block GL draws when Metal is active and we're in-world,
     // EXCEPT during offscreen atlas rendering (outputColorTextureOverride != null).
     // Offscreen draws target the GL atlas texture — we let GL populate it fully,
     // then snapshot the result to Metal for compositing. This is necessary because
-    // MC 1.21's RenderDispatcher+RenderPass pipeline renders most items to the atlas
+    // MC 1.21's RenderDispatcher+RenderPass pipeline renders most items to the
+    // atlas
     // through a path that bypasses RenderLayer.draw(). Letting GL handle ALL atlas
     // draws ensures the complete atlas is available for Metal compositing.
     if (MetalRenderClient.isEnabled() && MetalRenderClient.getWorldRenderer() != null
         && net.minecraft.client.MinecraftClient.getInstance().world != null) {
-      // Allow GL draws during offscreen rendering (outputColorTextureOverride != null).
+      // Allow GL draws during offscreen rendering (outputColorTextureOverride !=
+      // null).
       // MC renders items/player model via GL to an offscreen texture that gets
       // composited later. If we block these draws, the offscreen texture stays empty.
       if (com.mojang.blaze3d.systems.RenderSystem.outputColorTextureOverride != null) {

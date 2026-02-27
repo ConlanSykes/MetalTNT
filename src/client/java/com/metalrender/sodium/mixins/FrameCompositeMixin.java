@@ -23,7 +23,8 @@ public class FrameCompositeMixin {
      * will use an orthographic projection matrix.
      */
     @Inject(method = "renderWorld", at = @At("TAIL"))
-    private void metalrender$onWorldRenderDone(net.minecraft.client.render.RenderTickCounter tickCounter, CallbackInfo ci) {
+    private void metalrender$onWorldRenderDone(net.minecraft.client.render.RenderTickCounter tickCounter,
+            CallbackInfo ci) {
         if (MetalRenderClient.isEnabled()) {
             MetalWorldRenderer renderer = MetalRenderClient.getWorldRenderer();
             if (renderer != null && renderer.isInFrame()) {

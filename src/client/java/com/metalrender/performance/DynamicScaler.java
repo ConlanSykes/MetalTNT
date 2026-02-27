@@ -30,17 +30,16 @@ public final class DynamicScaler {
         double ratio = this.emaMs / target;
         MinecraftClient client = MinecraftClient.getInstance();
         float currScale = MetalRenderConfig.resolutionScale();
-        int currDist = (Integer)client.options.getViewDistance().getValue();
+        int currDist = (Integer) client.options.getViewDistance().getValue();
         if (this.lastDistance < 0) {
           this.lastDistance = currDist;
         }
 
         float minScale = MetalRenderConfig.dqMinScale();
-        float maxScale =
-            MetalRenderConfig.temporalAAEnabled()
-                ? Math.min(MetalRenderConfig.temporalUpscaleTarget(),
-                           MetalRenderConfig.dqMaxScale())
-                : MetalRenderConfig.dqMaxScale();
+        float maxScale = MetalRenderConfig.temporalAAEnabled()
+            ? Math.min(MetalRenderConfig.temporalUpscaleTarget(),
+                MetalRenderConfig.dqMaxScale())
+            : MetalRenderConfig.dqMaxScale();
         float scaleStep = MetalRenderConfig.dqScaleStep();
         boolean scaleChanged = false;
         float scaleDrop;

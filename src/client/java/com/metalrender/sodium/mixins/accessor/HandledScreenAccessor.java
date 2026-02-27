@@ -7,12 +7,12 @@ import org.spongepowered.asm.mixin.gen.Accessor;
 
 @Mixin(HandledScreen.class)
 public interface HandledScreenAccessor {
-    @Accessor("handler")
-    ScreenHandler metalrender$getHandler();
+  @Accessor("handler")
+  ScreenHandler metalrender$getHandler();
 
-    @Accessor("x")
-    int metalrender$getX();
+  @Accessor("x")
+  int metalrender$getX();
 
-    @Accessor("y")
-    int metalrender$getY();
+  @Accessor("y")
+  int metalrender$getY();
 }

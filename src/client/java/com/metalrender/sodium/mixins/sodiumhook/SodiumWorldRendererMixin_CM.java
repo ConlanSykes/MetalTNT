@@ -13,27 +13,31 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Pseudo
-@Mixin(
-    targets = {"net.caffeinemc.mods.sodium.client.render.SodiumWorldRenderer"})
+@Mixin(targets = { "net.caffeinemc.mods.sodium.client.render.SodiumWorldRenderer" })
 public class SodiumWorldRendererMixin_CM {
-  @Inject(method = {"setupTerrain"}, at = { @At("HEAD") }, require = 0)
-  private void metalrender$setupTerrain(
-      @Coerce Object worldRenderer, @Coerce Object viewport,
-      @Coerce Object fogParams, boolean isSpectator, boolean captureFrustum,
-      @Coerce Object matrices, CallbackInfo ci) {}
-
-  @Inject(method = {"drawChunkLayer"}, at = { @At("HEAD") }, cancellable = true,
-          require = 0)
-  private void metalrender$drawChunkLayer(BlockRenderLayerGroup group, ChunkRenderMatrices matrices, double x, double y, double z, GpuSampler terrainSampler, CallbackInfo ci) {
-    if (!MetalRenderClient.isEnabled()) return;
-    MetalWorldRenderer renderer = MetalRenderClient.getWorldRenderer();
-    if (renderer == null || renderer.getHandle() == 0L) return;
-
-    // Only call renderFrame once per frame (first drawChunkLayer call opens the Metal frame)
-    if (!renderer.isInFrame()) {
-      renderer.renderFrame(null, matrices, x, y, z);
+    @Inject(method = { "setupTerrain" }, at = { @At("HEAD") }, require = 0)
+    private void metalrender$setupTerrain(
+            @Coerce Object worldRenderer, @Coerce Object viewport,
+            @Coerce Object fogParams, boolean isSpectator, boolean captureFrustum,
+            @Coerce Object matrices, CallbackInfo ci) {
     }
-    // Cancel Sodium's GL terrain draw — Metal handles terrain via indirect rendering
-    ci.cancel();
-  }
+
+    @Inject(method = { "drawChunkLayer" }, at = { @At("HEAD") }, cancellable = true, require = 0)
+    private void metalrender$drawChunkLayer(BlockRenderLayerGroup group, ChunkRenderMatrices matrices, double x,
+            double y, double z, GpuSampler terrainSampler, CallbackInfo ci) {
+        if (!MetalRenderClient.isEnabled())
+            return;
+        MetalWorldRenderer renderer = MetalRenderClient.getWorldRenderer();
+        if (renderer == null || renderer.getHandle() == 0L)
+            return;
+
+        // Only call renderFrame once per frame (first drawChunkLayer call opens the
+        // Metal frame)
+        if (!renderer.isInFrame()) {
+            renderer.renderFrame(null, matrices, x, y, z);
+        }
+        // Cancel Sodium's GL terrain draw — Metal handles terrain via indirect
+        // rendering
+        ci.cancel();
+    }
 }

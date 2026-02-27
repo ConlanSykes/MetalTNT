@@ -361,7 +361,8 @@ public class MetalWorldRenderer {
   private static long volatileFlushCount = 0;
 
   private void flushVolatileTexture(long handle, int glTexId) {
-    if (glTexId <= 0) return;
+    if (glTexId <= 0)
+      return;
     try {
       int prevTex = org.lwjgl.opengl.GL11.glGetInteger(
           org.lwjgl.opengl.GL11.GL_TEXTURE_BINDING_2D);
@@ -432,13 +433,23 @@ public class MetalWorldRenderer {
             // Find first non-transparent pixel for sampling
             int sampleR = -1, sampleG = -1, sampleB = -1, sampleA = -1;
             for (int i = 0; i < pixels.length; i += 4) {
-              int r = pixels[i] & 0xFF, g = pixels[i+1] & 0xFF, b = pixels[i+2] & 0xFF, a = pixels[i+3] & 0xFF;
-              if (r != 0) nonZeroR++;
-              if (g != 0) nonZeroG++;
-              if (b != 0) nonZeroB++;
-              if (a != 0) nonZeroA++;
-              if (r != 0 || g != 0 || b != 0 || a != 0) totalNonZero++;
-              if (sampleR == -1 && a > 0) { sampleR = r; sampleG = g; sampleB = b; sampleA = a; }
+              int r = pixels[i] & 0xFF, g = pixels[i + 1] & 0xFF, b = pixels[i + 2] & 0xFF, a = pixels[i + 3] & 0xFF;
+              if (r != 0)
+                nonZeroR++;
+              if (g != 0)
+                nonZeroG++;
+              if (b != 0)
+                nonZeroB++;
+              if (a != 0)
+                nonZeroA++;
+              if (r != 0 || g != 0 || b != 0 || a != 0)
+                totalNonZero++;
+              if (sampleR == -1 && a > 0) {
+                sampleR = r;
+                sampleG = g;
+                sampleB = b;
+                sampleA = a;
+              }
             }
             System.err.println("[MetalRender] flushVolatileTexture: glId=" + glTexId
                 + " (" + w + "x" + h + ")"

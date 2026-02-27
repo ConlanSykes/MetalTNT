@@ -35,17 +35,21 @@ import java.util.HashSet;
 import java.util.Set;
 
 /**
- * Intercepts GuiRenderState.addText() to capture text that bypasses DrawContext.drawText().
+ * Intercepts GuiRenderState.addText() to capture text that bypasses
+ * DrawContext.drawText().
  *
  * In MC 1.21.11, menu button text goes through:
- *   ButtonWidget.drawIcon() → drawLabel(DrawnTextConsumer) →
- *   TextConsumerImpl.text() → GuiRenderState.addText()
+ * ButtonWidget.drawIcon() → drawLabel(DrawnTextConsumer) →
+ * TextConsumerImpl.text() → GuiRenderState.addText()
  *
- * This completely bypasses DrawContext.drawText(), which our DrawContextMixin hooks.
- * By intercepting at the GuiRenderState level, we catch ALL text regardless of source.
+ * This completely bypasses DrawContext.drawText(), which our DrawContextMixin
+ * hooks.
+ * By intercepting at the GuiRenderState level, we catch ALL text regardless of
+ * source.
  *
  * HUD text that goes through DrawContext.drawText() is already cancelled by
- * DrawContextMixin before it reaches addText(), so there's no double-processing.
+ * DrawContextMixin before it reaches addText(), so there's no
+ * double-processing.
  */
 @Mixin(GuiRenderState.class)
 public class GuiRenderStateMixin {
@@ -54,7 +58,8 @@ public class GuiRenderStateMixin {
     private static long addSimpleDiagCount = 0;
 
     /**
-     * DIAGNOSTIC: Intercept addSimpleElement to see which elements reach GuiRenderState.
+     * DIAGNOSTIC: Intercept addSimpleElement to see which elements reach
+     * GuiRenderState.
      * This catches elements that bypass or fall through DrawContextMixin.
      */
     @Inject(method = "addSimpleElement", at = @At("HEAD"))
@@ -72,12 +77,13 @@ public class GuiRenderStateMixin {
                         GpuTextureView tv = ts.texure0();
                         if (tv != null) {
                             GpuTexture gt = tv.texture();
-                            if (gt instanceof GlTexture glt) texId = glt.getGlId();
+                            if (gt instanceof GlTexture glt)
+                                texId = glt.getGlId();
                         }
                     }
                     details = " pos=(" + tq.x1() + "," + tq.y1() + ")-(" + tq.x2() + "," + tq.y2() + ")"
                             + " uv=(" + tq.u1() + "," + tq.u2() + "," + tq.v1() + "," + tq.v2() + ")"
-                            + " tex=" + texId + " w=" + (tq.x2()-tq.x1()) + " h=" + (tq.y2()-tq.y1());
+                            + " tex=" + texId + " w=" + (tq.x2() - tq.x1()) + " h=" + (tq.y2() - tq.y1());
                 }
                 addSimpleDiagCount++;
                 System.err.println("[BTN-DIAG-ASE] addSimpleElement #" + addSimpleDiagCount
@@ -88,9 +94,11 @@ public class GuiRenderStateMixin {
 
     @Inject(method = "addText", at = @At("HEAD"), cancellable = true)
     private void metalrender$interceptAddText(TextGuiElementRenderState state, CallbackInfo ci) {
-        if (!MetalRenderClient.isEnabled()) return;
+        if (!MetalRenderClient.isEnabled())
+            return;
         MetalWorldRenderer renderer = MetalRenderClient.getWorldRenderer();
-        if (renderer == null || renderer.getHandle() == 0L || !renderer.isInFrame()) return;
+        if (renderer == null || renderer.getHandle() == 0L || !renderer.isInFrame())
+            return;
 
         try {
             // Extract text rendering parameters from the render state
@@ -153,14 +161,17 @@ public class GuiRenderStateMixin {
     private static long frameQuadBranchGlReadback = 0;
     private static long lastFrameNumber = -1;
 
-    // Track GL textures that need per-frame re-upload (item atlas, entity offscreen)
+    // Track GL textures that need per-frame re-upload (item atlas, entity
+    // offscreen)
     private static final Set<Integer> volatileTextures = new HashSet<>();
-    // Per-frame dedup: track the offscreen draw version at which we last uploaded each texture
+    // Per-frame dedup: track the offscreen draw version at which we last uploaded
+    // each texture
     private static final java.util.Map<Integer, Integer> lastUploadedVersion = new java.util.HashMap<>();
     private static long simpleElementCount = 0;
     // Per-frame counter for unique volatile snapshot texture IDs (range 300000+)
     private static int nextVolatileSnapshotId = 300000;
-    // Per-frame map: GL texture ID → snapshot texture ID that was already uploaded this frame
+    // Per-frame map: GL texture ID → snapshot texture ID that was already uploaded
+    // this frame
     // Avoids re-reading the same GL texture multiple times per frame
     private static final java.util.Map<Integer, Integer> frameSnapshotMap = new java.util.HashMap<>();
     private static long simpleElementBtnDiag = 0;
@@ -192,7 +203,8 @@ public class GuiRenderStateMixin {
                     GpuTextureView tv = diagTs.texure0();
                     if (tv != null) {
                         GpuTexture gt = tv.texture();
-                        if (gt instanceof GlTexture glt) diagTexId = glt.getGlId();
+                        if (gt instanceof GlTexture glt)
+                            diagTexId = glt.getGlId();
                     }
                 }
                 simpleElementBtnDiag++;
@@ -201,12 +213,14 @@ public class GuiRenderStateMixin {
                         + " pos=(" + state.x1() + "," + state.y1() + ")-(" + state.x2() + "," + state.y2() + ")"
                         + " uv=(" + state.u1() + "," + state.u2() + "," + state.v1() + "," + state.v2() + ")"
                         + " tex=" + diagTexId + " color=0x" + Integer.toHexString(state.color())
-                        + " w=" + (state.x2()-state.x1()) + " h=" + (state.y2()-state.y1()));
+                        + " w=" + (state.x2() - state.x1()) + " h=" + (state.y2() - state.y1()));
             }
         }
-        if (!MetalRenderClient.isEnabled()) return;
+        if (!MetalRenderClient.isEnabled())
+            return;
         MetalWorldRenderer renderer = MetalRenderClient.getWorldRenderer();
-        if (renderer == null || renderer.getHandle() == 0L || !renderer.isInFrame()) return;
+        if (renderer == null || renderer.getHandle() == 0L || !renderer.isInFrame())
+            return;
 
         try {
             long handle = renderer.getHandle();
@@ -287,8 +301,7 @@ public class GuiRenderStateMixin {
                     // Check if we're inside prepareItemElements() (atlas being actively
                     // populated one item at a time). If so, DEFER the readback to
                     // compositeOverlay() when ALL items have been rendered.
-                    com.mojang.blaze3d.textures.GpuTextureView overrideTex =
-                            com.mojang.blaze3d.systems.RenderSystem.outputColorTextureOverride;
+                    com.mojang.blaze3d.textures.GpuTextureView overrideTex = com.mojang.blaze3d.systems.RenderSystem.outputColorTextureOverride;
                     if (overrideTex != null) {
                         // Item atlas compositing — defer readback to end of frame
                         MetalWorldRenderer.pendingVolatileReads.add(glTexId);
@@ -326,7 +339,8 @@ public class GuiRenderStateMixin {
             float brx = m00 * x2 + m10 * y2 + m20, bry = m01 * x2 + m11 * y2 + m21;
 
             // V-flip for Metal offscreen RTT textures.
-            // Metal renders top-down (row 0 = top), but MC's UV coords assume GL convention.
+            // Metal renders top-down (row 0 = top), but MC's UV coords assume GL
+            // convention.
             // For atlas textures rendered by Metal RTT, we need to flip V.
             boolean isAtlasTex = (glTexId == MetalWorldRenderer.lastAtlasGlId
                     || glTexId == MetalWorldRenderer.currentOffscreenGlTexId);
@@ -380,10 +394,12 @@ public class GuiRenderStateMixin {
      * HandledScreen's slots. Returns the Slot object, or null if not found.
      */
     private static long slotLookupCount = 0;
+
     private static Slot metalrender$lookupSlotAtPosition(float screenX, float screenY) {
         try {
             Screen screen = MinecraftClient.getInstance().currentScreen;
-            if (!(screen instanceof HandledScreenAccessor handledAccess)) return null;
+            if (!(screen instanceof HandledScreenAccessor handledAccess))
+                return null;
 
             ScreenHandler handler = handledAccess.metalrender$getHandler();
             int guiX = handledAccess.metalrender$getX();
@@ -398,7 +414,8 @@ public class GuiRenderStateMixin {
                     if (slotLookupCount <= 20 || slotLookupCount % 5000 == 0) {
                         ItemStack stack = slot.getStack();
                         String itemId = (stack != null && !stack.isEmpty())
-                                ? Registries.ITEM.getId(stack.getItem()).toString() : "<empty>";
+                                ? Registries.ITEM.getId(stack.getItem()).toString()
+                                : "<empty>";
                         System.err.println("[MetalRender] Slot lookup #" + slotLookupCount
                                 + ": (" + screenX + "," + screenY + ") → slot " + slot.id
                                 + " (" + slotScreenX + "," + slotScreenY + ") = '" + itemId + "'");
@@ -419,25 +436,28 @@ public class GuiRenderStateMixin {
      * Converts MC UV coordinates (GL convention) to Metal atlas pixel coordinates.
      */
     private static void metalrender$scheduleBlit(int cacheTexId, int slotId, String itemKey,
-                                                  float u1, float v1, float u2, float v2) {
+            float u1, float v1, float u2, float v2) {
         int atlasW = MetalWorldRenderer.offscreenWidth;
         int atlasH = MetalWorldRenderer.offscreenHeight;
-        if (atlasW <= 0 || atlasH <= 0) return;
+        if (atlasW <= 0 || atlasH <= 0)
+            return;
 
         // Convert MC UV (GL convention) to Metal atlas pixel coords
         float metalV1 = 1.0f - v1;
         float metalV2 = 1.0f - v2;
         float topV = Math.min(metalV1, metalV2);
         float botV = Math.max(metalV1, metalV2);
-        int srcX = Math.max(0, (int)(u1 * atlasW));
-        int srcY = Math.max(0, (int)(topV * atlasH));
-        int srcW = Math.max(1, (int)((u2 - u1) * atlasW));
-        int srcH = Math.max(1, (int)((botV - topV) * atlasH));
+        int srcX = Math.max(0, (int) (u1 * atlasW));
+        int srcY = Math.max(0, (int) (topV * atlasH));
+        int srcW = Math.max(1, (int) ((u2 - u1) * atlasW));
+        int srcH = Math.max(1, (int) ((botV - topV) * atlasH));
 
         // Use currentOffscreenGlTexId as the source — this is the atlas being built
-        // this frame. compositeOverlay will snapshot it under this ID before processing blits.
+        // this frame. compositeOverlay will snapshot it under this ID before processing
+        // blits.
         int atlasId = MetalWorldRenderer.currentOffscreenGlTexId;
-        if (atlasId <= 0) atlasId = MetalWorldRenderer.lastAtlasGlId;
+        if (atlasId <= 0)
+            atlasId = MetalWorldRenderer.lastAtlasGlId;
         ItemRenderCache.addPendingBlit(new ItemRenderCache.PendingBlit(
                 slotId, itemKey, cacheTexId, atlasId,
                 srcX, srcY, srcW, srcH));
@@ -454,12 +474,14 @@ public class GuiRenderStateMixin {
      */
     /**
      * Upload a volatile GL texture to Metal under a unique snapshot ID.
-     * @param handle Metal context handle
-     * @param glTexId GL texture to read pixels from
+     * 
+     * @param handle        Metal context handle
+     * @param glTexId       GL texture to read pixels from
      * @param snapshotTexId unique Metal texture ID to store the snapshot under
      */
     private static void uploadVolatileTexture(long handle, int glTexId, int snapshotTexId) {
-        if (glTexId <= 0) return;
+        if (glTexId <= 0)
+            return;
 
         try {
             // Save current state
@@ -539,12 +561,13 @@ public class GuiRenderStateMixin {
                 // meaningful locations. Items are in GL's top rows (= last rows in buffer).
                 int totalNonZero = 0;
                 for (int i = 0; i < pixels.length; i++) {
-                    if (pixels[i] != 0) totalNonZero++;
+                    if (pixels[i] != 0)
+                        totalNonZero++;
                 }
                 // Sample from last rows of buffer (= GL top = where items are rendered)
                 int sampleR = 0, sampleG = 0, sampleB = 0, sampleA = 0;
                 // Sample at ~12.5% from the top in GL (= 87.5% into the buffer)
-                int glTopRowIdx = (int)(h * 0.875) * w * 4 + (w / 8) * 4; // ~row 448 of 512, column 64
+                int glTopRowIdx = (int) (h * 0.875) * w * 4 + (w / 8) * 4; // ~row 448 of 512, column 64
                 if (glTopRowIdx + 3 < pixels.length) {
                     sampleR = pixels[glTopRowIdx] & 0xFF;
                     sampleG = pixels[glTopRowIdx + 1] & 0xFF;
@@ -580,7 +603,8 @@ public class GuiRenderStateMixin {
 
     /**
      * Build a 2-triangle quad from 4 transformed corners.
-     * Layout: 6 vertices × 32 bytes (float3 pos + ubyte4 color + float2 uv + float2 light)
+     * Layout: 6 vertices × 32 bytes (float3 pos + ubyte4 color + float2 uv + float2
+     * light)
      */
     private static byte[] buildQuad(
             float tlx, float tly, float trx, float try_,
@@ -601,8 +625,8 @@ public class GuiRenderStateMixin {
     }
 
     private static void writeVertex(ByteBuffer buf, float x, float y, float z,
-                                     byte r, byte g, byte b, byte a,
-                                     float u, float v) {
+            byte r, byte g, byte b, byte a,
+            float u, float v) {
         buf.putFloat(x);
         buf.putFloat(y);
         buf.putFloat(z);
