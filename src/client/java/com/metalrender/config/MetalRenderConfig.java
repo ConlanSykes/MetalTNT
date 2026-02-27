@@ -7,11 +7,16 @@ public final class MetalRenderConfig {
   private static volatile boolean swapCutout = false;
   private static volatile boolean swapTranslucent = false;
   private static volatile boolean aggressiveFrustumCulling = true;
-  private static volatile boolean occlusionCulling = true;
+  private static volatile boolean occlusionCulling = false;
   private static volatile boolean dynamicQuality = true;
   private static volatile boolean meshShadersEnabled = true;
   private static volatile boolean temporalAAEnabled = true;
   private static volatile boolean distanceLodEnabled = true;
+  private static volatile boolean sodiumlessEnabled = false;
+  private static volatile boolean blockCullingEnabled = false;
+  private static volatile int blockCullingDecorativeDistance = 32;
+  private static volatile int blockCullingFunctionalDistance = 64;
+  private static volatile int blockCullingStructuralDistance = 128;
   private static volatile float resolutionScale = 1.0F;
   private static volatile float dqMinScale = 0.7F;
   private static volatile float dqMaxScale = 1.0F;
@@ -26,89 +31,156 @@ public final class MetalRenderConfig {
   private static volatile int lodFarDistance = 16;
   private static volatile float lodDistantScale = 0.10F;
 
-  private MetalRenderConfig() {}
+  private MetalRenderConfig() {
+  }
 
-  public static boolean metalRenderEnabled() { return metalRenderEnabled; }
+  public static boolean metalRenderEnabled() {
+    return metalRenderEnabled;
+  }
 
-  public static boolean mirrorUploads() { return mirrorUploads; }
+  public static boolean mirrorUploads() {
+    return mirrorUploads;
+  }
 
-  public static boolean swapOpaque() { return swapOpaque; }
+  public static boolean swapOpaque() {
+    return swapOpaque;
+  }
 
-  public static boolean swapCutout() { return swapCutout; }
+  public static boolean swapCutout() {
+    return swapCutout;
+  }
 
-  public static boolean swapTranslucent() { return swapTranslucent; }
+  public static boolean swapTranslucent() {
+    return swapTranslucent;
+  }
 
   public static boolean aggressiveFrustumCulling() {
     return aggressiveFrustumCulling;
   }
 
-  public static boolean occlusionCulling() { return occlusionCulling; }
+  public static boolean occlusionCulling() {
+    return occlusionCulling;
+  }
 
-  public static boolean dynamicQuality() { return dynamicQuality; }
+  public static boolean dynamicQuality() {
+    return dynamicQuality;
+  }
 
-  public static boolean meshShadersEnabled() { return meshShadersEnabled; }
+  public static boolean meshShadersEnabled() {
+    return meshShadersEnabled;
+  }
 
-  public static boolean temporalAAEnabled() { return temporalAAEnabled; }
+  public static boolean temporalAAEnabled() {
+    return temporalAAEnabled;
+  }
 
-  public static boolean distanceLodEnabled() { return distanceLodEnabled; }
+  public static boolean distanceLodEnabled() {
+    return distanceLodEnabled;
+  }
 
-  public static float resolutionScale() { return resolutionScale; }
+  public static float resolutionScale() {
+    return resolutionScale;
+  }
 
-  public static float dqMinScale() { return dqMinScale; }
+  public static float dqMinScale() {
+    return dqMinScale;
+  }
 
-  public static float dqMaxScale() { return dqMaxScale; }
+  public static float dqMaxScale() {
+    return dqMaxScale;
+  }
 
-  public static float dqScaleStep() { return dqScaleStep; }
+  public static float dqScaleStep() {
+    return dqScaleStep;
+  }
 
-  public static double dqTargetFrameMs() { return dqTargetFrameMs; }
+  public static double dqTargetFrameMs() {
+    return dqTargetFrameMs;
+  }
 
-  public static int dqMinViewDistance() { return dqMinViewDistance; }
+  public static int dqMinViewDistance() {
+    return dqMinViewDistance;
+  }
 
-  public static int dqMaxViewDistance() { return dqMaxViewDistance; }
+  public static int dqMaxViewDistance() {
+    return dqMaxViewDistance;
+  }
 
-  public static int dqViewDistanceStep() { return dqViewDistanceStep; }
+  public static int dqViewDistanceStep() {
+    return dqViewDistanceStep;
+  }
 
-  public static float temporalUpscaleTarget() { return temporalUpscaleTarget; }
+  public static float temporalUpscaleTarget() {
+    return temporalUpscaleTarget;
+  }
 
-  public static float temporalBlendFactor() { return temporalBlendFactor; }
+  public static float temporalBlendFactor() {
+    return temporalBlendFactor;
+  }
 
-  public static int lodDistanceThreshold() { return lodDistanceThreshold; }
+  public static int lodDistanceThreshold() {
+    return lodDistanceThreshold;
+  }
 
-  public static int lodFarDistance() { return lodFarDistance; }
+  public static int lodFarDistance() {
+    return lodFarDistance;
+  }
 
-  public static float lodDistantScale() { return lodDistantScale; }
+  public static float lodDistantScale() {
+    return lodDistantScale;
+  }
 
   public static void setMetalRenderEnabled(boolean v) {
     metalRenderEnabled = v;
   }
 
-  public static void setMirrorUploads(boolean v) { mirrorUploads = v; }
+  public static void setMirrorUploads(boolean v) {
+    mirrorUploads = v;
+  }
 
-  public static void setSwapOpaque(boolean v) { swapOpaque = v; }
+  public static void setSwapOpaque(boolean v) {
+    swapOpaque = v;
+  }
 
-  public static void setSwapCutout(boolean v) { swapCutout = v; }
+  public static void setSwapCutout(boolean v) {
+    swapCutout = v;
+  }
 
-  public static void setSwapTranslucent(boolean v) { swapTranslucent = v; }
+  public static void setSwapTranslucent(boolean v) {
+    swapTranslucent = v;
+  }
 
   public static void setAggressiveFrustumCulling(boolean v) {
     aggressiveFrustumCulling = v;
   }
 
-  public static void setOcclusionCulling(boolean v) { occlusionCulling = v; }
+  public static void setOcclusionCulling(boolean v) {
+    occlusionCulling = v;
+  }
 
-  public static void setDynamicQuality(boolean v) { dynamicQuality = v; }
+  public static void setDynamicQuality(boolean v) {
+    dynamicQuality = v;
+  }
 
   public static void setResolutionScale(float v) {
     resolutionScale = clamp(v, 0.5F, 1.5F);
   }
 
-  public static void setDqMinScale(float v) { dqMinScale = v; }
+  public static void setDqMinScale(float v) {
+    dqMinScale = v;
+  }
 
-  public static void setDqMaxScale(float v) { dqMaxScale = v; }
+  public static void setDqMaxScale(float v) {
+    dqMaxScale = v;
+  }
 
-  public static void setDqScaleStep(float v) { dqScaleStep = v; }
+  public static void setDqScaleStep(float v) {
+    dqScaleStep = v;
+  }
 
-  public static void setDqTargetFrameMs(double v) { dqTargetFrameMs = v; }
+  public static void setDqTargetFrameMs(double v) {
+    dqTargetFrameMs = v;
+  }
 
   public static void setDqMinViewDistance(int v) {
     dqMinViewDistance = Math.max(2, v);
@@ -126,7 +198,9 @@ public final class MetalRenderConfig {
     meshShadersEnabled = v;
   }
 
-  public static void setTemporalAAEnabled(boolean v) { temporalAAEnabled = v; }
+  public static void setTemporalAAEnabled(boolean v) {
+    temporalAAEnabled = v;
+  }
 
   public static void setDistanceLodEnabled(boolean v) {
     distanceLodEnabled = v;
@@ -152,29 +226,67 @@ public final class MetalRenderConfig {
     lodDistantScale = clamp(v, 0.05F, 1.0F);
   }
 
+  // FEATURE_002: Sodiumless mode support
+  public static boolean sodiumlessEnabled() {
+    return sodiumlessEnabled;
+  }
+
+  public static void setsodiumlessEnabled(boolean v) {
+    sodiumlessEnabled = v;
+  }
+
+  // FEATURE_003: Block culling configuration
+  public static boolean blockCullingEnabled() {
+    return blockCullingEnabled;
+  }
+
+  public static void setBlockCullingEnabled(boolean v) {
+    blockCullingEnabled = v;
+  }
+
+  public static int blockCullingDecorativeDistance() {
+    return blockCullingDecorativeDistance;
+  }
+
+  public static void setBlockCullingDecorativeDistance(int v) {
+    blockCullingDecorativeDistance = Math.max(16, v);
+  }
+
+  public static int blockCullingFunctionalDistance() {
+    return blockCullingFunctionalDistance;
+  }
+
+  public static void setBlockCullingFunctionalDistance(int v) {
+    blockCullingFunctionalDistance = Math.max(32, v);
+  }
+
+  public static int blockCullingStructuralDistance() {
+    return blockCullingStructuralDistance;
+  }
+
+  public static void setBlockCullingStructuralDistance(int v) {
+    blockCullingStructuralDistance = Math.max(64, v);
+  }
+
   public static void loadFromSystemProperties() {
     mirrorUploads = getBool("metalrender.mirror", mirrorUploads);
     swapOpaque = getBool("metalrender.swap.opaque", swapOpaque);
     swapCutout = getBool("metalrender.swap.cutout", swapCutout);
     swapTranslucent = getBool("metalrender.swap.translucent", swapTranslucent);
-    aggressiveFrustumCulling =
-        getBool("metalrender.culling.frustum", aggressiveFrustumCulling);
-    occlusionCulling =
-        getBool("metalrender.culling.occlusion", occlusionCulling);
+    aggressiveFrustumCulling = getBool("metalrender.culling.frustum", aggressiveFrustumCulling);
+    occlusionCulling = getBool("metalrender.culling.occlusion", occlusionCulling);
     dynamicQuality = getBool("metalrender.dynamic.enable", dynamicQuality);
-    resolutionScale =
-        getFloat("metalrender.render.resolutionScale", resolutionScale);
+    resolutionScale = getFloat("metalrender.render.resolutionScale", resolutionScale);
     dqMinScale = getFloat("metalrender.dynamic.scale.min", dqMinScale);
     dqMaxScale = getFloat("metalrender.dynamic.scale.max", dqMaxScale);
     dqScaleStep = getFloat("metalrender.dynamic.scale.step", dqScaleStep);
-    dqTargetFrameMs =
-        getDouble("metalrender.dynamic.targetMs", dqTargetFrameMs);
-    setDqMinViewDistance((int)getFloat("metalrender.dynamic.distance.min",
-                                       (float)dqMinViewDistance));
-    setDqMaxViewDistance((int)getFloat("metalrender.dynamic.distance.max",
-                                       (float)dqMaxViewDistance));
-    setDqViewDistanceStep((int)getFloat("metalrender.dynamic.distance.step",
-                                        (float)dqViewDistanceStep));
+    dqTargetFrameMs = getDouble("metalrender.dynamic.targetMs", dqTargetFrameMs);
+    setDqMinViewDistance((int) getFloat("metalrender.dynamic.distance.min",
+        (float) dqMinViewDistance));
+    setDqMaxViewDistance((int) getFloat("metalrender.dynamic.distance.max",
+        (float) dqMaxViewDistance));
+    setDqViewDistanceStep((int) getFloat("metalrender.dynamic.distance.step",
+        (float) dqViewDistanceStep));
   }
 
   private static boolean getBool(String key, boolean def) {

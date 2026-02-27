@@ -359,3 +359,20 @@ git clone https://github.com/webblepebbles/metalrender.git
 cd metalrender
 ./gradlew build
 ```
+
+---
+
+## Development Documentation
+
+All project documentation lives in the `docs/` folder:
+
+| Document | Description |
+|---|---|
+| [docs/AGENT_SYSTEM.md](docs/AGENT_SYSTEM.md) | **Start here** — Agent roles, layers, and how they interact |
+| [docs/LAYER_ARCHITECTURE.md](docs/LAYER_ARCHITECTURE.md) | Technical rendering pipeline layers and MetalContext |
+| [docs/agents/](docs/agents/) | Individual agent instruction manuals |
+| [docs/features/](docs/features/) | Feature specifications (FEATURE_001 through FEATURE_005) |
+| [docs/workflow/](docs/workflow/) | Development workflow, status dashboard, roadmap |
+| [docs/reports/](docs/reports/) | Code review reports, completion reports, cycle reports |
+
+If you're contributing or running the agent system, read `docs/AGENT_SYSTEM.md` first.

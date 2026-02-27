@@ -26,10 +26,6 @@ public final class MetalSurfaceManager {
   }
 
   public static boolean ensureSurface(long nativeHandle) {
-    MetalLogger.info(
-        "[MetalSurface] ensureSurface called: nativeHandle=%d, attachmentSucceeded=%s, attachmentAttempted=%s",
-        nativeHandle, attachmentSucceeded.get(), attachmentAttempted.get());
-
     // Always poll to check if attachment completed
     pollAttachment();
 
@@ -142,7 +138,6 @@ public final class MetalSurfaceManager {
   public static void pollAttachment() {
     // First check if future is done
     if (attachmentFuture != null) {
-      MetalLogger.info("[MetalSurface] pollAttachment: checking future, isDone=%s", attachmentFuture.isDone());
       if (attachmentFuture.isDone()) {
         boolean attached = false;
         try {

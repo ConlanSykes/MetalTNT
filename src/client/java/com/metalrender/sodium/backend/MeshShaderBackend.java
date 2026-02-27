@@ -1,21 +1,19 @@
 package com.metalrender.sodium.backend;
 
 import com.metalrender.config.MetalRenderConfig;
-import com.metalrender.lod.LODGenerator;
-import com.metalrender.lod.LODGenerator.LevelData;
 import com.metalrender.nativebridge.NativeBridge;
 import com.metalrender.performance.RenderOptimizer;
 import com.metalrender.performance.RenderingMetrics;
 import com.metalrender.util.MetalLogger;
 import com.metalrender.util.PersistentBufferArena;
-import com.metalrender.util.VertexCompressor;
-import com.metalrender.util.VertexCompressor.CompressedMesh;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.locks.ReentrantLock;
 import net.caffeinemc.mods.sodium.client.render.chunk.RenderSection;
 import net.caffeinemc.mods.sodium.client.render.chunk.compile.ChunkBuildOutput;
 import net.caffeinemc.mods.sodium.client.render.chunk.data.BuiltSectionMeshParts;
@@ -26,23 +24,25 @@ import net.minecraft.util.math.Vec3d;
 
 public final class MeshShaderBackend {
   private static final int MAX_LOD_LEVELS = 3;
-  private static final int MAX_CHUNK_CACHE_SIZE = 8192;
-  private static final double MAX_CHUNK_DISTANCE = 1024.0;
+  private static final int MAX_CHUNK_CACHE_SIZE = 16384;
+  private static final double MAX_CHUNK_DISTANCE = 4096.0;
 
   private final boolean meshSupported;
   private final Map<Long, ChunkMesh> chunkMeshes = new ConcurrentHashMap<>();
+  private final ConcurrentHashMap<Long, ReentrantLock> chunkLocks = new ConcurrentHashMap<>();
+  private volatile PersistentBufferArena arena; // stored for freeing old allocations
   private long lastCleanupFrame = 0;
+  private volatile int exhaustionLogCount = 0;
 
   public MeshShaderBackend() {
     this.meshSupported = NativeBridge.nSupportsMeshShaders();
     MetalLogger.info("[MetalRender] Mesh shader support: {}",
-                     this.meshSupported ? "available"
-                                        : "unavailable (compute fallback)");
+        this.meshSupported ? "available"
+            : "unavailable (compute fallback)");
   }
 
   public boolean isMeshEnabled() {
-    boolean enabled =
-        this.meshSupported && MetalRenderConfig.meshShadersEnabled();
+    boolean enabled = this.meshSupported && MetalRenderConfig.meshShadersEnabled();
     if (Math.random() < 0.001) {
       MetalLogger.info(
           "[MeshBackend] isMeshEnabled() = %s (supported=%s, config=%s)",
@@ -51,10 +51,23 @@ public final class MeshShaderBackend {
     return enabled;
   }
 
-  public void destroy() { this.chunkMeshes.clear(); }
+  public void destroy() {
+    this.chunkMeshes.clear();
+  }
+
+  public int chunkMeshCount() {
+    return this.chunkMeshes.size();
+  }
+
+  // Sodium COMPACT vertex stride: 5 x uint32 = 20 bytes
+  private static final int SODIUM_COMPACT_STRIDE = 20;
+
+  private ReentrantLock getLockForKey(long key) {
+    return this.chunkLocks.computeIfAbsent(key, k -> new ReentrantLock());
+  }
 
   public void uploadBuildOutput(long nativeHandle, PersistentBufferArena arena,
-                                ChunkBuildOutput output) {
+      ChunkBuildOutput output) {
     if (arena == null || output == null) {
       return;
     }
@@ -65,93 +78,114 @@ public final class MeshShaderBackend {
     }
 
     BlockPos origin = new BlockPos(section.getOriginX(), section.getOriginY(),
-                                   section.getOriginZ());
+        section.getOriginZ());
     long key = origin.asLong();
+    this.arena = arena; // remember arena for future frees
 
-    if (output.meshes == null || output.meshes.isEmpty()) {
-      this.chunkMeshes.remove(key);
-      return;
-    }
-
-    ChunkMesh mesh = new ChunkMesh(origin, MAX_LOD_LEVELS);
-
-    for (Map.Entry<TerrainRenderPass, BuiltSectionMeshParts> entry :
-         output.meshes.entrySet()) {
-      BuiltSectionMeshParts parts = entry.getValue();
-      if (parts == null || parts.getVertexData() == null ||
-          parts.getVertexData().getLength() == 0) {
-        continue;
+    // Per-key lock prevents two threads from uploading the same chunk
+    // simultaneously, which would leak the first thread's allocation.
+    ReentrantLock lock = getLockForKey(key);
+    lock.lock();
+    try {
+      if (output.meshes == null || output.meshes.isEmpty()) {
+        freeChunkAllocations(key, arena);
+        this.chunkMeshes.remove(key);
+        return;
       }
 
-      ByteBuffer vanilla =
-          parts.getVertexData().getDirectBuffer().duplicate().order(
-              ByteOrder.LITTLE_ENDIAN);
-      vanilla.clear();
+      // Free old allocation before re-uploading
+      freeChunkAllocations(key, arena);
 
-      int vertexCount =
-          parts.getVertexData().getLength() / VertexCompressor.INPUT_STRIDE;
-      if (vertexCount <= 0) {
-        continue;
-      }
+      ChunkMesh mesh = new ChunkMesh(origin, MAX_LOD_LEVELS);
 
-      CompressedMesh compressed =
-          VertexCompressor.compress(origin, vanilla, vertexCount);
-      if (compressed.vertexCount <= 0) {
-        continue;
-      }
-
-      ByteBuffer persistent = arena.buffer();
-      if (persistent == null) {
-        MetalLogger.warn("[MetalRender] Persistent buffer unavailable; "
-                             + "skipping chunk upload at {}",
-                         origin);
-        continue;
-      }
-
-      List<LevelData> levels = LODGenerator.generate(compressed);
-      if (!MetalRenderConfig.meshShadersEnabled() && !levels.isEmpty()) {
-        LevelData base = levels.get(0);
-        levels = List.of(base);
-      }
-      if (levels.isEmpty()) {
-        continue;
-      }
-
-      for (LevelData level : levels) {
-        ByteBuffer levelBuffer = level.buffer();
-        int bytes = levelBuffer.remaining();
-        if (bytes <= 0) {
+      for (Map.Entry<TerrainRenderPass, BuiltSectionMeshParts> entry : output.meshes.entrySet()) {
+        BuiltSectionMeshParts parts = entry.getValue();
+        if (parts == null || parts.getVertexData() == null ||
+            parts.getVertexData().getLength() == 0) {
           continue;
         }
 
-        int offset = arena.allocate(bytes);
+        ByteBuffer rawData = parts.getVertexData().getDirectBuffer().duplicate().order(
+            ByteOrder.LITTLE_ENDIAN);
+        rawData.clear();
+        int rawBytes = parts.getVertexData().getLength();
+        rawData.limit(rawBytes);
+
+        int vertexCount = rawBytes / SODIUM_COMPACT_STRIDE;
+        if (vertexCount <= 0) {
+          continue;
+        }
+
+        ByteBuffer persistent = arena.buffer();
+        if (persistent == null) {
+          continue;
+        }
+
+        int offset = arena.allocate(rawBytes);
         if (offset < 0) {
-          MetalLogger.warn("[MetalRender] Persistent buffer exhausted while "
-                               + "uploading chunk {}",
-                           origin);
-          break;
+          // Buffer genuinely full — skip this chunk upload.
+          // Do NOT evict existing distant chunks, because Sodium won't
+          // re-send them and they'd be lost permanently.
+          if (this.exhaustionLogCount++ < 10) {
+            MetalLogger.warn("[MetalRender] Persistent buffer full, skipping chunk {} "
+                + "(cursor={}MB/{}MB, chunks={}, requested={}B)",
+                origin,
+                arena.cursor() / 1024 / 1024,
+                arena.capacity() / 1024 / 1024,
+                this.chunkMeshes.size(), rawBytes);
+          }
+          continue;
         }
 
         ByteBuffer target = persistent.duplicate();
         target.position(offset);
-        target.limit(offset + bytes);
-        ByteBuffer copy = levelBuffer.duplicate();
-        target.put(copy);
+        target.limit(offset + rawBytes);
+        target.put(rawData);
 
-        mesh.addDraw(level.level, new DrawCommand(offset, level.vertexCount));
+        mesh.addDraw(0, new DrawCommand(offset, vertexCount, rawBytes));
       }
-    }
 
-    if (mesh.hasDraws()) {
-      this.chunkMeshes.put(key, mesh);
-    } else {
-      this.chunkMeshes.remove(key);
+      if (mesh.hasDraws()) {
+        this.chunkMeshes.put(key, mesh);
+        int sz = this.chunkMeshes.size();
+        if (sz <= 20 || sz % 200 == 0) {
+          System.err.println("[MetalRender] [UPLOAD] Chunk at " + origin
+              + " stored; total=" + sz
+              + " arena=" + (arena.cursor() / 1024 / 1024) + "MB/"
+              + (arena.capacity() / 1024 / 1024) + "MB");
+        }
+      } else {
+        this.chunkMeshes.remove(key);
+      }
+    } finally {
+      lock.unlock();
     }
   }
 
   public void removeChunkMesh(BlockPos chunkPos) {
     if (chunkPos != null) {
-      this.chunkMeshes.remove(chunkPos.asLong());
+      long key = chunkPos.asLong();
+      ReentrantLock lock = getLockForKey(key);
+      lock.lock();
+      try {
+        freeChunkAllocations(key, this.arena);
+        this.chunkMeshes.remove(key);
+      } finally {
+        lock.unlock();
+      }
+      // Clean up the lock entry if no longer needed
+      this.chunkLocks.remove(key);
+    }
+  }
+
+  private void freeChunkAllocations(long key, PersistentBufferArena arena) {
+    ChunkMesh old = this.chunkMeshes.get(key);
+    if (old != null && arena != null) {
+      for (int lvl = 0; lvl < old.levelCount(); lvl++) {
+        for (DrawCommand draw : old.drawsForLevel(lvl)) {
+          arena.free(draw.vertexOffset, draw.byteLength);
+        }
+      }
     }
   }
 
@@ -161,7 +195,7 @@ public final class MeshShaderBackend {
     }
 
     Vec3d cameraPos = camera.getCameraPos();
-    java.util.List<Long> toRemove = new java.util.ArrayList<>();
+    List<Long> toRemove = new ArrayList<>();
 
     for (ChunkMesh mesh : this.chunkMeshes.values()) {
       double distance = mesh.distanceTo(cameraPos);
@@ -171,7 +205,9 @@ public final class MeshShaderBackend {
     }
 
     for (Long key : toRemove) {
+      freeChunkAllocations(key, this.arena);
       this.chunkMeshes.remove(key);
+      this.chunkLocks.remove(key);
     }
 
     if (!toRemove.isEmpty()) {
@@ -183,7 +219,7 @@ public final class MeshShaderBackend {
   }
 
   public int emitDraws(long nativeHandle, RenderOptimizer optimizer,
-                       Camera camera) {
+      Camera camera) {
     if (this.chunkMeshes.isEmpty()) {
       return 0;
     }
@@ -201,8 +237,22 @@ public final class MeshShaderBackend {
     int lodFar = MetalRenderConfig.lodFarDistance();
     float distantScale = MetalRenderConfig.lodDistantScale();
 
+    // Sort chunks front-to-back from camera position.
+    // This populates the depth buffer with nearby geometry first,
+    // allowing early-z rejection to skip fragment shading on
+    // distant/occluded chunks — a significant GPU perf win.
+    double cx = cameraPos.x;
+    double cy = cameraPos.y;
+    double cz = cameraPos.z;
+    List<ChunkMesh> sorted = new ArrayList<>(this.chunkMeshes.values());
+    sorted.sort((a, b) -> {
+      double da = a.distanceSquaredTo(cx, cy, cz);
+      double db = b.distanceSquaredTo(cx, cy, cz);
+      return Double.compare(da, db);
+    });
+
     int commandIndex = 0;
-    for (ChunkMesh mesh : this.chunkMeshes.values()) {
+    for (ChunkMesh mesh : sorted) {
       if (!optimizer.shouldRenderChunk(mesh.origin, camera)) {
         continue;
       }
@@ -228,19 +278,16 @@ public final class MeshShaderBackend {
 
       RenderingMetrics.recordLodUsage(lodLevel, 0, 0);
 
-      boolean applyDistanceScale =
-          lodEnabled && lodLevel == mesh.levelCount() - 1;
       for (DrawCommand draw : draws) {
         int vertexCount = draw.vertexCount;
-        if (applyDistanceScale) {
-          vertexCount = Math.max(3, (int)(vertexCount * distantScale));
-        }
 
         RenderingMetrics.addVertices(vertexCount);
         RenderingMetrics.addDrawCommand();
         NativeBridge.nQueueIndirectDraw(nativeHandle, commandIndex++,
-                                        draw.vertexOffset, 0L, vertexCount, 0,
-                                        0, 1, 0, (float)worldDistance);
+            draw.vertexOffset, 0L, vertexCount,
+            mesh.origin.getX(), mesh.origin.getY(),
+            1, mesh.origin.getZ(),
+            (float) worldDistance);
       }
     }
 
@@ -276,14 +323,23 @@ public final class MeshShaderBackend {
       return this.level(index).draws;
     }
 
-    int levelCount() { return this.levels.length; }
+    int levelCount() {
+      return this.levels.length;
+    }
 
     double distanceTo(Vec3d cameraPos) {
-      double centerX = (double)this.origin.getX() + 8.0 - cameraPos.x;
-      double centerY = (double)this.origin.getY() + 8.0 - cameraPos.y;
-      double centerZ = (double)this.origin.getZ() + 8.0 - cameraPos.z;
+      double centerX = (double) this.origin.getX() + 8.0 - cameraPos.x;
+      double centerY = (double) this.origin.getY() + 8.0 - cameraPos.y;
+      double centerZ = (double) this.origin.getZ() + 8.0 - cameraPos.z;
       return Math.sqrt(centerX * centerX + centerY * centerY +
-                       centerZ * centerZ);
+          centerZ * centerZ);
+    }
+
+    double distanceSquaredTo(double cx, double cy, double cz) {
+      double dx = (double) this.origin.getX() + 8.0 - cx;
+      double dy = (double) this.origin.getY() + 8.0 - cy;
+      double dz = (double) this.origin.getZ() + 8.0 - cz;
+      return dx * dx + dy * dy + dz * dz;
     }
 
     private LODLevel level(int index) {
@@ -295,16 +351,20 @@ public final class MeshShaderBackend {
   private static final class LODLevel {
     final List<DrawCommand> draws = new CopyOnWriteArrayList<>();
 
-    void add(DrawCommand command) { this.draws.add(command); }
+    void add(DrawCommand command) {
+      this.draws.add(command);
+    }
   }
 
   private static final class DrawCommand {
     final int vertexOffset;
     final int vertexCount;
+    final int byteLength; // original byte length for freeing
 
-    DrawCommand(int vertexOffset, int vertexCount) {
+    DrawCommand(int vertexOffset, int vertexCount, int byteLength) {
       this.vertexOffset = vertexOffset;
       this.vertexCount = vertexCount;
+      this.byteLength = byteLength;
     }
   }
 }

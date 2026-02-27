@@ -1,7 +1,6 @@
 package com.metalrender.performance;
 
 import com.metalrender.config.MetalRenderConfig;
-import com.metalrender.temporal.TemporalUpscaler;
 import com.metalrender.util.MetalLogger;
 import net.minecraft.client.MinecraftClient;
 
@@ -11,7 +10,6 @@ public final class DynamicScaler {
   private int slowFrameStreak = 0;
   private int fastFrameStreak = 0;
   private boolean announcedEnable = false;
-  private final TemporalUpscaler temporalUpscaler = new TemporalUpscaler();
 
   private int frameCounter = 0;
   private static final int UPDATE_FREQUENCY = 3;
@@ -91,7 +89,6 @@ public final class DynamicScaler {
         }
       }
 
-      this.temporalUpscaler.updateScale();
     }
   }
 

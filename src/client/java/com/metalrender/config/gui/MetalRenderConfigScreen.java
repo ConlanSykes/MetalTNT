@@ -10,7 +10,9 @@ import java.util.function.Function;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
+import net.minecraft.client.gui.screen.narration.NarrationMessageBuilder;
 import net.minecraft.client.gui.widget.ButtonWidget;
+import net.minecraft.client.gui.widget.ClickableWidget;
 import net.minecraft.client.gui.widget.SliderWidget;
 import net.minecraft.text.Text;
 import net.minecraft.util.math.MathHelper;
@@ -254,18 +256,32 @@ public final class MetalRenderConfigScreen extends Screen {
     }
   }
 
-  private final class StyledToggleButton extends ButtonWidget {
+  private final class StyledToggleButton extends ClickableWidget {
     private final ToggleControl control;
+    private final Runnable onToggle;
 
     private StyledToggleButton(int x, int y, int width, int height,
         ToggleControl control, Runnable onToggle) {
-      super(x, y, width, height, Text.empty(), btn -> onToggle.run(),
-          DEFAULT_NARRATION_SUPPLIER);
+      super(x, y, width, height, Text.empty());
       this.control = control;
+      this.onToggle = onToggle;
+    }
+
+    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+      if (this.isMouseOver(mouseX, mouseY)) {
+        onToggle.run();
+        return true;
+      }
+      return false;
     }
 
     @Override
-    public void renderWidget(DrawContext context, int mouseX, int mouseY,
+    protected void appendClickableNarrations(NarrationMessageBuilder builder) {
+      this.appendDefaultNarrations(builder);
+    }
+
+    @Override
+    protected void renderWidget(DrawContext context, int mouseX, int mouseY,
         float delta) {
       int x = this.getX();
       int y = this.getY();

@@ -2,6 +2,7 @@ package com.metalrender.sodium.mixins;
 
 import com.metalrender.MetalRenderClient;
 import com.metalrender.render.MetalWorldRenderer;
+import com.metalrender.render.atlas.CapturedAtlas;
 import com.metalrender.render.atlas.CapturedAtlasRepository;
 import com.metalrender.render.atlas.SpriteAtlasCapture;
 import com.metalrender.util.MetalLogger;
@@ -23,7 +24,7 @@ public abstract class SpriteAtlasTextureMixin {
   @Shadow
   public abstract Identifier getId();
 
-  @Inject(method = "upload", at = @At("TAIL"))
+  @Inject(method = "create", at = @At("TAIL"))
   private void metalrender$captureAtlas(SpriteLoader.StitchResult stitchResult,
       CallbackInfo ci) {
     Identifier atlasId = this.getId();
@@ -31,13 +32,19 @@ public abstract class SpriteAtlasTextureMixin {
       return;
     }
 
+    // At create() time, the GL texture is NOT yet uploaded (glId = 0).
+    // We capture via manual blit as a FALLBACK (stored in repository).
+    // The primary path is GL readback at render time (in MetalWorldRenderer.uploadAtlas()).
     SpriteAtlasTexture self = (SpriteAtlasTexture) (Object) this;
-    SpriteAtlasCapture.capture(self).ifPresent(atlas -> {
+    java.util.Optional<CapturedAtlas> capturedOpt = SpriteAtlasCapture.capture(self);
+    capturedOpt.ifPresent(atlas -> {
       CapturedAtlasRepository.store(atlasId, atlas);
-      MetalLogger.info("[AtlasCapture] Captured blocks atlas (%dx%d)", 
-          atlas.width(), atlas.height());
-      triggerAtlasUpload(atlasId);
+      MetalLogger.info("[AtlasCapture] Manual blit fallback stored ({}x{})", atlas.width(), atlas.height());
     });
+
+    // Signal the render thread to do GL readback (preferred path)
+    MetalLogger.info("[AtlasCapture] Atlas create() — signalling render-time GL readback");
+    triggerAtlasUpload(atlasId);
   }
 
   private static void triggerAtlasUpload(Identifier atlasId) {

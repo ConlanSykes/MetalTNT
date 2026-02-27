@@ -3,7 +3,6 @@ package com.metalrender;
 import com.metalrender.commands.MetalRenderCommand;
 import com.metalrender.config.MetalRenderConfig;
 import com.metalrender.config.MetalRenderConfigManager;
-import com.metalrender.culling.AsyncOcclusionTracker;
 import com.metalrender.debug.ConfigDumpCommand;
 import com.metalrender.memory.GpuMemoryBudget;
 import com.metalrender.nativebridge.MetalHardwareChecker;
@@ -26,7 +25,6 @@ public final class MetalRenderClient implements ClientModInitializer {
   private static volatile boolean ENABLED = false;
   private static volatile MetalWorldRenderer WORLD;
   private static volatile MeshShaderBackend MESH_BACKEND;
-  private static volatile AsyncOcclusionTracker OCCLUSION_TRACKER;
   private static volatile GpuMemoryBudget MEMORY_BUDGET;
   private static volatile boolean HARDWARE_SUPPORTED;
   private static volatile boolean SOLO_MODE;
@@ -87,10 +85,6 @@ public final class MetalRenderClient implements ClientModInitializer {
     return MESH_BACKEND;
   }
 
-  public static AsyncOcclusionTracker getOcclusionTracker() {
-    return OCCLUSION_TRACKER;
-  }
-
   public static GpuMemoryBudget getMemoryBudget() {
     return MEMORY_BUDGET;
   }
@@ -147,10 +141,7 @@ public final class MetalRenderClient implements ClientModInitializer {
 
     WORLD = renderer;
     MESH_BACKEND = new MeshShaderBackend();
-    OCCLUSION_TRACKER = new AsyncOcclusionTracker();
-    // Initialize GPU memory budget after world renderer (needs native handle)
-    // For now just log that it would be initialized
-    MetalLogger.info("MetalRender runtime enabled with AsyncOcclusionTracker");
+    MetalLogger.info("MetalRender runtime enabled");
     ENABLED = true;
     SOLO_MODE = MetalRenderConfig.sodiumlessEnabled();
     scheduleAtlasUpload();
@@ -165,10 +156,6 @@ public final class MetalRenderClient implements ClientModInitializer {
     if (MESH_BACKEND != null) {
       MESH_BACKEND.destroy();
       MESH_BACKEND = null;
-    }
-    if (OCCLUSION_TRACKER != null) {
-      OCCLUSION_TRACKER.shutdown();
-      OCCLUSION_TRACKER = null;
     }
     MEMORY_BUDGET = null;
     SOLO_MODE = false;

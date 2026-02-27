@@ -1,5 +1,7 @@
 package com.metalrender.sodium.mixins.sodiumhook;
 
+import com.metalrender.MetalRenderClient;
+import com.metalrender.render.MetalWorldRenderer;
 import net.caffeinemc.mods.sodium.client.render.chunk.ChunkRenderMatrices;
 import net.minecraft.client.gl.GpuSampler;
 import net.minecraft.client.render.BlockRenderLayerGroup;
@@ -23,5 +25,15 @@ public class SodiumWorldRendererMixin_CM {
   @Inject(method = {"drawChunkLayer"}, at = { @At("HEAD") }, cancellable = true,
           require = 0)
   private void metalrender$drawChunkLayer(BlockRenderLayerGroup group, ChunkRenderMatrices matrices, double x, double y, double z, GpuSampler terrainSampler, CallbackInfo ci) {
+    if (!MetalRenderClient.isEnabled()) return;
+    MetalWorldRenderer renderer = MetalRenderClient.getWorldRenderer();
+    if (renderer == null || renderer.getHandle() == 0L) return;
+
+    // Only call renderFrame once per frame (first drawChunkLayer call opens the Metal frame)
+    if (!renderer.isInFrame()) {
+      renderer.renderFrame(null, matrices, x, y, z);
+    }
+    // Cancel Sodium's GL terrain draw — Metal handles terrain via indirect rendering
+    ci.cancel();
   }
 }

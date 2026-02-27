@@ -1,8 +1,20 @@
 /**
- * MetalRender Terrain Shaders
- * 
- * Decodes Sodium's CompactChunkVertex format (20 bytes):
- * - bytes 0-3:   packPositionHi (x10|y10|z10|unused2)
+ * MetalRender Terrain Shaders (FEATURE_012 - Production)
+ *
+ * Decodes VertexCompressor's 24-byte format:
+ * - bytes 0-1:   short qx (quantized position X, relative * 256)
+ * - bytes 2-3:   short qy (quantized position Y, relative * 256)
+ * - bytes 4-5:   short qz (quantized position Z, relative * 256)
+ * - bytes 6-7:   short padding
+ * - bytes 8-11:  uint normalPacked (10-bit SNorm per axis)
+ * - bytes 12-15: uint color (ABGR pass-through)
+ * - bytes 16-19: uint uvPacked (half-float u | half-float v)
+ * - bytes 20-23: uint lightPacked (blockLight16 | skyLight16)
+ *
+ * Per-draw chunk origin is passed via DrawData buffer indexed by instance_id.
+ * The actual shader code is embedded in metalrender.mm as kTerrainShaderSource.
+ * This file serves as a reference/documentation copy.
+ */
  * - bytes 4-7:   packPositionLo (x10|y10|z10|unused2)
  * - bytes 8-11:  color ARGB (ColorARGB format: a<<24|r<<16|g<<8|b, with AO pre-applied to RGB)
  * - bytes 12-15: texU[15+sign] | texV[15+sign]
